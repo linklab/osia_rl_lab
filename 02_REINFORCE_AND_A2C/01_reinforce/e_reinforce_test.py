@@ -36,7 +36,7 @@ def test(env, policy, num_episodes):
 def main_play(num_episodes, env_name):
     env = gym.make(env_name, render_mode="human")
 
-    policy = Policy(n_features=3, n_actions=1)
+    policy = Policy(n_features=2, n_actions=1)
 
     model_params = torch.load(os.path.join(MODEL_DIR, "reinforce_{0}_latest.pth".format(env_name)))
     policy.load_state_dict(model_params)
@@ -49,6 +49,6 @@ def main_play(num_episodes, env_name):
 
 if __name__ == "__main__":
     NUM_EPISODES = 3
-    ENV_NAME = "Pendulum-v1"
+    ENV_NAME = "MountainCarContinuous-v0"
 
     main_play(num_episodes=NUM_EPISODES, env_name=ENV_NAME)

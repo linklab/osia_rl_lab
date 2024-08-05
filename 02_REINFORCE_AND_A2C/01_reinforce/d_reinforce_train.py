@@ -40,11 +40,11 @@ class REINFORCE:
         self.validation_num_episodes = config["validation_num_episodes"]
         self.episode_reward_avg_solved = config["episode_reward_avg_solved"]
 
-        self.policy = Policy(n_features=3, n_actions=1)
+        self.policy = Policy(n_features=2, n_actions=1)
         self.optimizer = optim.Adam(self.policy.parameters(), lr=self.learning_rate)
 
         if self.use_baseline:
-            self.state_value_net = StateValueNet(n_features=3)
+            self.state_value_net = StateValueNet(n_features=2)
             self.value_optimizer = optim.Adam(self.state_value_net.parameters(), lr=self.learning_rate)
 
         self.buffer = Buffer()
@@ -230,7 +230,7 @@ class REINFORCE:
 
 
 def main():
-    ENV_NAME = "Pendulum-v1"
+    ENV_NAME = "MountainCarContinuous-v0"
 
     # env
     env = gym.make(ENV_NAME)
@@ -244,7 +244,7 @@ def main():
         "print_episode_interval": 20,               # Episode 통계 출력에 관한 에피소드 간격
         "train_num_episodes_before_next_test": 100,                  # 검증 사이 마다 각 훈련 episode 간격
         "validation_num_episodes": 3,               # 검증에 수행하는 에피소드 횟수
-        "episode_reward_avg_solved": -200,          # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
+        "episode_reward_avg_solved": 70,          # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
     }
 
     use_wandb = True

@@ -3,7 +3,7 @@ import gymnasium as gym
 import numpy as np
 
 np.set_printoptions(formatter={'float': '{:5.2f}'.format})
-env = gym.make('Pendulum-v1', render_mode="human")
+env = gym.make('MountainCarContinuous-v0', render_mode="human")
 
 
 class Dummy_Agent:

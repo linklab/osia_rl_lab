@@ -6,7 +6,7 @@ import numpy as np
 print("gym.__version__:", gym.__version__)
 np.set_printoptions(formatter={'float': '{:5.2f}'.format})
 
-env = gym.make('Pendulum-v1', render_mode="human")
+env = gym.make('MountainCarContinuous-v0', render_mode="human")
 
 
 def env_info_details():
@@ -33,7 +33,7 @@ def env_info_details():
     print("*" * 80)
     observation, info = env.reset()
 
-    action = [-1.2]
+    #action = [-1.2]
     action = env.action_space.sample()
     next_observation, reward, terminated, truncated, info = env.step(action)
 
