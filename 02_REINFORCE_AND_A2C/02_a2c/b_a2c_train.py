@@ -41,10 +41,10 @@ class A2C:
         self.validation_num_episodes = config["validation_num_episodes"]
         self.episode_reward_avg_solved = config["episode_reward_avg_solved"]
 
-        self.actor = Actor(n_features=2, n_actions=1)
+        self.actor = Actor(n_features=3, n_actions=1)
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.learning_rate)
 
-        self.critic = Critic(n_features=2)
+        self.critic = Critic(n_features=3)
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=self.learning_rate)
 
         self.buffer = Buffer()
@@ -72,7 +72,7 @@ class A2C:
 
                 action = self.actor.get_action(observation)
 
-                next_observation, reward, terminated, truncated, _ = self.env.step(action)
+                next_observation, reward, terminated, truncated, _ = self.env.step(action * 2)
 
                 episode_reward += reward
 
@@ -206,7 +206,6 @@ class A2C:
             done = False
 
             while not done:
-                # action = self.actor.get_action(observation)
                 action = self.actor.get_action(observation, exploration=False)
 
                 next_observation, reward, terminated, truncated, _ = self.test_env.step(action * 2)
@@ -221,7 +220,7 @@ class A2C:
 
 
 def main():
-    ENV_NAME = "MountainCarContinuous-v0"
+    ENV_NAME = "Pendulum-v1"
 
     # env
     env = gym.make(ENV_NAME)
@@ -237,7 +236,7 @@ def main():
         "print_episode_interval": 20,               # Episode 통계 출력에 관한 에피소드 간격
         "train_num_episodes_before_next_test": 100,                  # 검증 사이 마다 각 훈련 episode 간격
         "validation_num_episodes": 3,               # 검증에 수행하는 에피소드 횟수
-        "episode_reward_avg_solved": 50,            # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
+        "episode_reward_avg_solved": -150,            # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
     }
 
     use_wandb = True

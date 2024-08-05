@@ -35,7 +35,7 @@ def test(env, actor, num_episodes):
 def main_play(num_episodes, env_name):
     env = gym.make(env_name, render_mode="human")
 
-    actor = Actor(n_features=2, n_actions=1)
+    actor = Actor(n_features=3, n_actions=1)
     model_params = torch.load(os.path.join(MODEL_DIR, "a2c_{0}_latest.pth".format(env_name)))
     actor.load_state_dict(model_params)
     actor.eval()
@@ -47,6 +47,6 @@ def main_play(num_episodes, env_name):
 
 if __name__ == "__main__":
     NUM_EPISODES = 3
-    ENV_NAME = "MountainCarContinuous-v0"
+    ENV_NAME = "Pendulum-v1"
 
     main_play(num_episodes=NUM_EPISODES, env_name=ENV_NAME)

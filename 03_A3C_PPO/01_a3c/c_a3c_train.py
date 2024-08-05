@@ -32,17 +32,10 @@ class SharedCounter:
 
 
 class A3CAgent:
-    def __init__(self,
-                 worker_id,
-                 global_actor,
-                 global_critic,
-                 global_actor_optimizer,
-                 global_critic_optimizer,
-                 counter,
-                 run_wandb,
-                 env,
-                 test_env,
-                 config):
+    def __init__(
+        self, worker_id, global_actor, global_critic, global_actor_optimizer, global_critic_optimizer,
+        counter, run_wandb, env, test_env, config
+    ):
         self.env_name = config["env_name"]
         self.env = env
         self.test_env = test_env
@@ -50,13 +43,15 @@ class A3CAgent:
 
         self.global_actor = global_actor
         self.global_critic = global_critic
+
         self.local_actor = copy.deepcopy(global_actor)
         self.local_actor.load_state_dict(global_actor.state_dict())
+
         self.local_critic = copy.deepcopy(global_critic)
         self.local_critic.load_state_dict(global_critic.state_dict())
 
-        self.actor_optimizer = global_actor_optimizer
-        self.critic_optimizer = global_critic_optimizer
+        self.global_actor_optimizer = global_actor_optimizer
+        self.global_critic_optimizer = global_critic_optimizer
 
         self.max_num_episodes = config["max_num_episodes"]
         self.batch_size = config["batch_size"]
@@ -77,13 +72,6 @@ class A3CAgent:
         self.run_wandb = run_wandb
 
         self.current_time = datetime.now().astimezone().strftime('%Y-%m-%d_%H-%M-%S')
-
-        # if self.use_wandb:
-        #     self.wandb = wandb.init(
-        #         project="A3C_{0}".format(self.env_name),
-        #         name=self.current_time,
-        #         config=config
-        #     )
 
     def train_loop(self):
         total_train_start_time = time.time()
@@ -191,13 +179,13 @@ class A3CAgent:
 
         # CRITIC UPDATE
         critic_loss = F.mse_loss(q_values.detach(), values)
-        self.critic_optimizer.zero_grad()
+        self.global_critic_optimizer.zero_grad()
         for i in self.local_critic.parameters():
             i.grad = None
         critic_loss.backward()
         for local_param, global_param in zip(self.local_critic.parameters(), self.global_critic.parameters()):
             global_param.grad = local_param.grad
-        self.critic_optimizer.step()
+        self.global_critic_optimizer.step()
         self.local_critic.load_state_dict(self.global_critic.state_dict())
 
         # Advantage calculating
@@ -218,13 +206,13 @@ class A3CAgent:
         actor_loss = -1.0 * log_pi_advantages_sum - 1.0 * entropy_sum * self.entropy_beta
 
         # Actor Update
-        self.actor_optimizer.zero_grad()
+        self.global_actor_optimizer.zero_grad()
         for i in self.local_actor.parameters():
             i.grad = None
         actor_loss.backward()
         for local_param, global_param in zip(self.local_actor.parameters(), self.global_actor.parameters()):
             global_param.grad = local_param.grad
-        self.actor_optimizer.step()
+        self.global_actor_optimizer.step()
         self.local_actor.load_state_dict(self.global_actor.state_dict())
 
         return (
@@ -264,8 +252,10 @@ class A3CAgent:
         )
 
 
-def worker(process_id, global_actor, global_critic, actor_optimizer, critic_optimizer, counter, run_wandb, test_env,
-           config):
+def worker(
+        process_id, global_actor, global_critic, global_actor_optimizer, global_critic_optimizer, counter, run_wandb,
+        test_env, config
+):
     env_name = config["env_name"]
     env = gym.make(env_name)
 
@@ -273,8 +263,8 @@ def worker(process_id, global_actor, global_critic, actor_optimizer, critic_opti
         worker_id=process_id,
         global_actor=global_actor,
         global_critic=global_critic,
-        global_actor_optimizer=actor_optimizer,
-        global_critic_optimizer=critic_optimizer,
+        global_actor_optimizer=global_actor_optimizer,
+        global_critic_optimizer=global_critic_optimizer,
         counter=counter,
         run_wandb=run_wandb,
         env=env,
@@ -299,7 +289,7 @@ def main():
         "print_episode_interval": 20,  # Episode 통계 출력에 관한 에피소드 간격
         "train_num_episodes_before_next_test": 100,  # 검증 사이 마다 각 훈련 episode 간격
         "validation_num_episodes": 3,  # 검증에 수행하는 에피소드 횟수
-        "episode_reward_avg_solved": -200  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
+        "episode_reward_avg_solved": -150  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
     }
 
     use_wandb = True
@@ -311,8 +301,8 @@ def main():
     global_actor = Actor(n_features=3, n_actions=1).share_memory()
     global_critic = Critic(n_features=3).share_memory()
 
-    actor_optimizer = SharedAdam(global_actor.parameters(), lr=config["learning_rate"], betas=(0.92, 0.999))
-    critic_optimizer = SharedAdam(global_critic.parameters(), lr=config["learning_rate"], betas=(0.92, 0.999))
+    global_actor_optimizer = SharedAdam(global_actor.parameters(), lr=config["learning_rate"], betas=(0.92, 0.999))
+    global_critic_optimizer = SharedAdam(global_critic.parameters(), lr=config["learning_rate"], betas=(0.92, 0.999))
 
     manager = multiprocessing.Manager()
     counter = SharedCounter()
@@ -333,7 +323,8 @@ def main():
         p = multiprocessing.Process(
             target=worker,
             args=(
-            i, global_actor, global_critic, actor_optimizer, critic_optimizer, counter, run_wandb, test_env, config)
+                i, global_actor, global_critic, global_actor_optimizer, global_critic_optimizer, counter, run_wandb, test_env, config
+            )
         )
         p.start()
         processes.append(p)
