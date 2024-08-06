@@ -37,12 +37,6 @@ class Policy(nn.Module):
 
         std_v = self.log_std.exp()
         std_v = torch.clamp(std_v, min=2.0, max=50)
-        # print(
-        #     "count_positive_mu: {0:>3}, mean_mu: {1}, mean_var: {2}".format(
-        #         torch.count_nonzero(mu_v > 0.0).item(),
-        #         mu_v.mean().item(),
-        #         std_v.mean().item(),
-        # ))
         return mu_v, std_v
 
     def get_action(self, x, exploration=True):
@@ -119,7 +113,7 @@ class Buffer:
 
         # Convert to tensor
         observations = torch.tensor(observations, dtype=torch.float32, device=DEVICE)
-        actions = torch.tensor(actions, dtype=torch.int64, device=DEVICE)
+        actions = torch.tensor(actions, dtype=torch.float32, device=DEVICE)
         next_observations = torch.tensor(next_observations, dtype=torch.float32, device=DEVICE)
         rewards = torch.tensor(rewards, dtype=torch.float32, device=DEVICE)
         dones = torch.tensor(dones, dtype=torch.bool, device=DEVICE)
