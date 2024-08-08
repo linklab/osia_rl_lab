@@ -87,24 +87,22 @@ class A2C:
                     policy_loss, critic_loss, avg_mu_v, avg_std_v, avg_action, avg_action_prob = self.train()
                     self.buffer.clear()
 
-            total_training_time = time.time() - total_train_start_time
-            total_training_time = time.strftime('%H:%M:%S', time.gmtime(total_training_time))
-
             if n_episode % self.print_episode_interval == 0:
                 print(
                     "[Episode {:3,}, Steps {:6,}]".format(n_episode, self.time_steps),
                     "Episode Reward: {:>9.3f},".format(episode_reward),
                     "Policy Loss: {:>7.3f},".format(policy_loss),
                     "Critic Loss: {:>7.3f},".format(critic_loss),
-                    "Training Steps: {:5,}, ".format(self.training_time_steps),
-                    "Elapsed Time: {}".format(total_training_time)
-                )
+                    "Training Steps: {:5,}, ".format(self.training_time_steps)                )
 
             if n_episode % self.train_num_episodes_before_next_validation == 0:
                 validation_episode_reward_lst, validation_episode_reward_avg = self.validate()
 
-                print("[Validation Episode Reward: {0}] Average: {1:.3f}".format(
-                    validation_episode_reward_lst, validation_episode_reward_avg
+                total_training_time = time.time() - total_train_start_time
+                total_training_time = time.strftime('%H:%M:%S', time.gmtime(total_training_time))
+
+                print("[Validation Episode Reward: {0}] Average: {1:.3f}, Elapsed Time: {2}".format(
+                    validation_episode_reward_lst, validation_episode_reward_avg, total_training_time
                 ))
 
                 if validation_episode_reward_avg > self.episode_reward_avg_solved:
@@ -114,9 +112,11 @@ class A2C:
                     self.model_save(validation_episode_reward_avg)
                     is_terminated = True
 
-            if self.use_wandb:
+            if self.use_wandb and n_episode > self.train_num_episodes_before_next_validation:
                 self.wandb.log({
-                    "[VALIDATION] Mean Episode Reward ({0} Episodes)".format(self.validation_num_episodes): validation_episode_reward_avg,
+                    "[VALIDATION] Mean Episode Reward ({0} Episodes)".format(
+                        self.validation_num_episodes
+                    ): validation_episode_reward_avg,
                     "[TRAIN] Episode Reward": episode_reward,
                     "[TRAIN] Policy Loss": policy_loss,
                     "[TRAIN] Critic Loss": critic_loss,

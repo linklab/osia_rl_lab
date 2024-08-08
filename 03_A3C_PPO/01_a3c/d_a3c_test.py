@@ -19,7 +19,6 @@ def test(env, actor, num_episodes):
 
         while not done:
             episode_steps += 1
-            # action = actor.get_action(observation)
             action = actor.get_action(observation, exploration=False)
 
             next_observation, reward, terminated, truncated, _ = env.step(action * 2)
