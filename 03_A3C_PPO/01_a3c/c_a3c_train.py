@@ -77,7 +77,6 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
                     self.shared_stat.global_episodes.value > self.train_num_episodes_before_next_validation
                 ]
                 if all(wandb_log_conditions) or bool(self.shared_stat.is_terminated.value):
-                    print(bool(self.shared_stat.is_terminated.value), validation_episode_reward_avg)
                     self.log_wandb(validation_episode_reward_avg)
                     self.last_episode_wandb_log = self.shared_stat.global_episodes.value
 
