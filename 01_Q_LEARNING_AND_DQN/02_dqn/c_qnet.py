@@ -6,8 +6,6 @@ import collections
 import torch
 import numpy as np
 
-print("TORCH VERSION:", torch.__version__)
-
 CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
 MODEL_DIR = os.path.join(CURRENT_PATH, "models")
 if not os.path.exists(MODEL_DIR):

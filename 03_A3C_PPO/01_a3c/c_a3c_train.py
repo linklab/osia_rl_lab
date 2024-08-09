@@ -198,8 +198,7 @@ def worker_loop(
 
                 while not done:
                     self.time_steps += 1
-                    with self.shared_stat.global_time_steps.get_lock():
-                        self.shared_stat.global_time_steps.value += 1
+                    self.shared_stat.global_time_steps.value += 1
 
                     action = self.local_actor.get_action(observation)
                     next_observation, reward, terminated, truncated, _ = self.env.step(action * 2)
@@ -215,20 +214,16 @@ def worker_loop(
 
                     if self.time_steps % self.batch_size == 0:
                         policy_loss, critic_loss, avg_mu_v, avg_std_v, avg_action = self.train()
-                        with self.shared_stat.train_result_lock:
-                            self.shared_stat.last_policy_loss.value = policy_loss
-                            self.shared_stat.last_critic_loss.value = critic_loss
-                            self.shared_stat.last_avg_mu_v.value = avg_mu_v
-                            self.shared_stat.last_avg_std_v.value = avg_std_v
-                            self.shared_stat.last_avg_action.value = avg_action
+                        self.shared_stat.last_policy_loss.value = policy_loss
+                        self.shared_stat.last_critic_loss.value = critic_loss
+                        self.shared_stat.last_avg_mu_v.value = avg_mu_v
+                        self.shared_stat.last_avg_std_v.value = avg_std_v
+                        self.shared_stat.last_avg_action.value = avg_action
 
                         self.buffer.clear()
 
-                with self.shared_stat.global_episodes.get_lock():
-                    self.shared_stat.global_episodes.value += 1
-
-                with self.shared_stat.last_episode_reward.get_lock():
-                    self.shared_stat.last_episode_reward.value = episode_reward
+                self.shared_stat.global_episodes.value += 1
+                self.shared_stat.last_episode_reward.value = episode_reward
 
                 if n_episode % self.print_episode_interval == 0:
                     print(
@@ -246,8 +241,7 @@ def worker_loop(
 
         def train(self):
             self.training_time_steps += 1
-            with self.shared_stat.global_training_time_steps.get_lock():
-                self.shared_stat.global_training_time_steps.value += 1
+            self.shared_stat.global_training_time_steps.value += 1
 
             # Getting values from buffer
             observations, actions, next_observations, rewards, dones = self.buffer.get()
@@ -407,11 +401,12 @@ class A3C:
 
 
 def main():
+    print("TORCH VERSION:", torch.__version__)
     ENV_NAME = "Pendulum-v1"
 
     config = {
         "env_name": ENV_NAME,                               # 환경의 이름
-        "num_workers": 2,
+        "num_workers": 32,
         "max_num_episodes": 200_000,                        # 훈련을 위한 최대 에피소드 횟수
         "batch_size": 256,                                  # 훈련시 배치에서 한번에 가져오는 랜덤 배치 사이즈
         "learning_rate": 0.0003,                            # 학습율

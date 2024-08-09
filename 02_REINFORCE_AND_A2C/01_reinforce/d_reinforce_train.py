@@ -225,6 +225,7 @@ class REINFORCE:
 
 
 def main():
+    print("TORCH VERSION:", torch.__version__)
     ENV_NAME = "Pendulum-v1"
 
     # env

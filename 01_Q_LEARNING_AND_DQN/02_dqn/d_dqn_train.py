@@ -240,6 +240,7 @@ class DQN:
 
 
 def main():
+    print("TORCH VERSION:", torch.__version__)
     ENV_NAME = "CartPole-v1"
 
     env = gym.make(ENV_NAME)
