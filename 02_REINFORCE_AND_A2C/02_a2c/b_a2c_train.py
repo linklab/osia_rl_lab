@@ -56,7 +56,7 @@ class A2C:
         total_train_start_time = time.time()
 
         validation_episode_reward_avg = -1500
-        policy_loss = critic_loss = avg_mu_v = avg_std_v = avg_action = avg_action_prob = 0.0
+        policy_loss = critic_loss = avg_mu_v = avg_std_v = avg_action = 0.0
 
         is_terminated = False
 
@@ -84,7 +84,7 @@ class A2C:
                 done = terminated or truncated
 
                 if self.time_steps % self.batch_size == 0:
-                    policy_loss, critic_loss, avg_mu_v, avg_std_v, avg_action, avg_action_prob = self.train()
+                    policy_loss, critic_loss, avg_mu_v, avg_std_v, avg_action = self.train()
                     self.buffer.clear()
 
             if n_episode % self.print_episode_interval == 0:
@@ -123,7 +123,6 @@ class A2C:
                     "[TRAIN] avg_mu_v": avg_mu_v,
                     "[TRAIN] avg_std_v": avg_std_v,
                     "[TRAIN] avg_action": avg_action,
-                    "[TRAIN] avg_action_prob": avg_action_prob,
                     "Training Episode": n_episode,
                     "Training Steps": self.training_time_steps,
                 })
@@ -180,8 +179,7 @@ class A2C:
             critic_loss.item(),
             mu_v.mean().item(),
             std_v.mean().item(),
-            actions.mean().item(),
-            action_log_probs.exp().mean().item()
+            actions.mean().item()
         )
 
     def model_save(self, validation_episode_reward_avg):
@@ -229,7 +227,7 @@ def main():
     config = {
         "env_name": ENV_NAME,                       # 환경의 이름
         "max_num_episodes": 200_000,                # 훈련을 위한 최대 에피소드 횟수
-        "batch_size": 32,                           # 훈련시 배치에서 한번에 가져오는 랜덤 배치 사이즈
+        "batch_size": 256,                          # 훈련시 배치에서 한번에 가져오는 랜덤 배치 사이즈
         "learning_rate": 0.0003,                    # 학습율
         "gamma": 0.99,                              # 감가율
         "entropy_beta": 0.05,                       # 엔트로피 가중치

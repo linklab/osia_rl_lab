@@ -37,7 +37,7 @@ class Actor(nn.Module):
         mu_v = F.tanh(self.mu(x))
 
         std_v = self.log_std.exp()
-        std_v = torch.clamp(std_v, min=2.0, max=50)
+        std_v = torch.clamp(std_v, min=2.0, max=50)  # Clamping for numerical stability
 
         return mu_v, std_v
 
@@ -73,7 +73,6 @@ class Critic(nn.Module):
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
         return x
-
 
 Transition = collections.namedtuple(
     typename='Transition',

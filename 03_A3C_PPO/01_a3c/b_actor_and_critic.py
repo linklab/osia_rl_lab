@@ -35,7 +35,7 @@ class Actor(nn.Module):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         mu_v = F.tanh(self.mu(x))
-        # mu = F.tanh(self.mu(x)) * 2  # Scale output to -2 ro 2 (action space bounds)
+
         std_v = self.log_std.exp()
         std_v = torch.clamp(std_v, min=2.0, max=50)  # Clamping for numerical stability
 
@@ -50,6 +50,7 @@ class Actor(nn.Module):
             action = torch.clamp(action, min=-1.0, max=1.0).detach().numpy()
         else:
             action = torch.clamp(mu_v, min=-1.0, max=1.0).detach().numpy()
+
         return action
 
 

@@ -83,7 +83,7 @@ class REINFORCE:
                 done = terminated or truncated
 
             # TRAIN AFTER EPISODE DONE
-            policy_loss, avg_mu_v, avg_std_v, avg_action, avg_action_prob = self.train()
+            policy_loss, avg_mu_v, avg_std_v, avg_action = self.train()
             self.buffer.clear()
 
             if n_episode % self.print_episode_interval == 0:
@@ -118,7 +118,6 @@ class REINFORCE:
                     "[TRAIN] avg_mu_v": avg_mu_v,
                     "[TRAIN] avg_std_v": avg_std_v,
                     "[TRAIN] avg_action": avg_action,
-                    "[TRAIN] avg_action_prob": avg_action_prob,
                     "Training Episode": n_episode,
                     "Training Steps": self.training_time_steps,
                 })
@@ -188,7 +187,6 @@ class REINFORCE:
             mu_v.mean().item(),
             std_v.mean().item(),
             actions.mean().item(),
-            action_log_probs.exp().mean().item()
         )
 
     def model_save(self, validation_episode_reward_avg):
