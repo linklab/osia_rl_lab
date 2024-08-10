@@ -83,7 +83,8 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
                     self.last_episode_wandb_log = self.shared_stat.global_episodes.value
 
                 if bool(self.shared_stat.is_terminated.value):
-                    self.log_wandb(validation_episode_reward_avg)
+                    for _ in range(5):
+                        self.log_wandb(validation_episode_reward_avg)
                     break
 
         def validate(self):
@@ -145,16 +146,14 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
 
 
 def worker_loop(
-        process_id, global_actor, global_critic, global_actor_optimizer, global_critic_optimizer, shared_stat,
-        lock, config
+        process_id, global_actor, global_critic, shared_stat, lock, config
 ):
     env_name = config["env_name"]
     env = gym.make(env_name)
 
     class PPOAgent:
         def __init__(
-                self, worker_id, global_actor, global_critic, global_actor_optimizer, global_critic_optimizer,
-                shared_stat, env, lock, config
+                self, worker_id, global_actor, global_critic, shared_stat, env, lock, config
         ):
             self.worker_id = worker_id
             self.env_name = config["env_name"]
@@ -170,9 +169,6 @@ def worker_loop(
             self.local_critic = copy.deepcopy(global_critic)
             self.local_critic.load_state_dict(global_critic.state_dict())
 
-            self.global_actor_optimizer = global_actor_optimizer
-            self.global_critic_optimizer = global_critic_optimizer
-
             self.local_actor_optimizer = Adam(self.local_actor.parameters(), lr=config["learning_rate"])
             self.local_critic_optimizer = Adam(self.local_critic.parameters(), lr=config["learning_rate"])
 
@@ -180,6 +176,8 @@ def worker_loop(
 
             self.max_num_episodes = config["max_num_episodes"]
             self.ppo_epochs = config["ppo_epochs"]
+            self.ppo_clip_coefficient = config["ppo_clip_coefficient"]
+
             self.batch_size = config["batch_size"]
             self.learning_rate = config["learning_rate"]
             self.gamma = config["gamma"]
@@ -289,7 +287,10 @@ def worker_loop(
                 ratio = torch.exp(action_log_probs - old_action_log_probs.detach())
 
                 ratio_advantages = ratio * advantages.detach()
-                ratio_advantages_sum = ratio_advantages.sum()
+                clipped_ratio_advantages = torch.clamp(
+                    ratio, 1 - self.ppo_clip_coefficient, 1 + self.ppo_clip_coefficient
+                ) * advantages.detach()
+                ratio_advantages_sum = torch.min(ratio_advantages, clipped_ratio_advantages).sum()
 
                 entropy = dist.entropy().squeeze(dim=-1)
                 entropy_sum = entropy.sum()
@@ -301,7 +302,7 @@ def worker_loop(
                 actor_loss.backward()
                 self.local_actor_optimizer.step()
 
-            # CRITIC UPDATE
+            # GLOBAL MODEL UPDATE
             self.lock.acquire()
             self.global_actor.load_state_dict(self.local_actor.state_dict())
             self.global_critic.load_state_dict(self.local_critic.state_dict())
@@ -319,8 +320,6 @@ def worker_loop(
         worker_id=process_id,
         global_actor=global_actor,
         global_critic=global_critic,
-        global_actor_optimizer=global_actor_optimizer,
-        global_critic_optimizer=global_critic_optimizer,
         shared_stat=shared_stat,
         env=env,
         lock=lock,
@@ -358,9 +357,6 @@ class PPO:
         self.global_actor = Actor(n_features=3, n_actions=1).share_memory()
         self.global_critic = Critic(n_features=3).share_memory()
 
-        self.global_actor_optimizer = SharedAdam(self.global_actor.parameters(), lr=config["learning_rate"])
-        self.global_critic_optimizer = SharedAdam(self.global_critic.parameters(), lr=config["learning_rate"])
-
         self.lock = mp.Lock()
         self.shared_stat = SharedInfo()
 
@@ -383,7 +379,6 @@ class PPO:
                 target=worker_loop,
                 args=(
                     i, self.global_actor, self.global_critic,
-                    self.global_actor_optimizer, self.global_critic_optimizer,
                     self.shared_stat, self.lock, self.config
                 )
             )
@@ -417,9 +412,10 @@ def main():
 
     config = {
         "env_name": ENV_NAME,                               # 환경의 이름
-        "num_workers": 4,                                   # 동시 수행 Worker Process 수
+        "num_workers": 8,                                   # 동시 수행 Worker Process 수
         "max_num_episodes": 200_000,                        # 훈련을 위한 최대 에피소드 횟수
         "ppo_epochs": 10,                                   # PPO 내부 업데이트 횟수
+        "ppo_clip_coefficient": 0.2,                               # PPO Ratio Clip Coefficient
         "batch_size": 256,                                  # 훈련시 배치에서 한번에 가져오는 랜덤 배치 사이즈
         "learning_rate": 0.0003,                            # 학습율
         "gamma": 0.99,                                      # 감가율

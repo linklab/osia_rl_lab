@@ -292,7 +292,6 @@ def worker_loop(
             for local_param, global_param in zip(self.local_actor.parameters(), self.global_actor.parameters()):
                 global_param.grad = local_param.grad
             self.global_actor_optimizer.step()
-
             self.local_actor.load_state_dict(self.global_actor.state_dict())
 
             self.lock.release()
@@ -412,7 +411,7 @@ def main():
         "batch_size": 256,                                  # 훈련시 배치에서 한번에 가져오는 랜덤 배치 사이즈
         "learning_rate": 0.0003,                            # 학습율
         "gamma": 0.99,                                      # 감가율
-        "entropy_beta": 0.05,                               # 엔트로피 가중치
+        "entropy_beta": 0.03,                               # 엔트로피 가중치
         "print_episode_interval": 20,                       # Episode 통계 출력에 관한 에피소드 간격
         "train_num_episodes_before_next_validation": 100,   # 검증 사이 마다 각 훈련 episode 간격
         "validation_num_episodes": 3,                       # 검증에 수행하는 에피소드 횟수
