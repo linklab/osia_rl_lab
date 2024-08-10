@@ -78,7 +78,7 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
                     self.shared_stat.global_episodes.value > self.last_episode_wandb_log,
                     self.shared_stat.global_episodes.value > self.train_num_episodes_before_next_validation
                 ]
-                if all(wandb_log_conditions) or bool(self.shared_stat.is_terminated.value):
+                if all(wandb_log_conditions):
                     self.log_wandb(validation_episode_reward_avg)
                     self.last_episode_wandb_log = self.shared_stat.global_episodes.value
 
@@ -412,10 +412,10 @@ def main():
 
     config = {
         "env_name": ENV_NAME,                               # 환경의 이름
-        "num_workers": 8,                                   # 동시 수행 Worker Process 수
+        "num_workers": 4,                                   # 동시 수행 Worker Process 수
         "max_num_episodes": 200_000,                        # 훈련을 위한 최대 에피소드 횟수
         "ppo_epochs": 10,                                   # PPO 내부 업데이트 횟수
-        "ppo_clip_coefficient": 0.2,                               # PPO Ratio Clip Coefficient
+        "ppo_clip_coefficient": 0.2,                        # PPO Ratio Clip Coefficient
         "batch_size": 256,                                  # 훈련시 배치에서 한번에 가져오는 랜덤 배치 사이즈
         "learning_rate": 0.0003,                            # 학습율
         "gamma": 0.99,                                      # 감가율
