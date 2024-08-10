@@ -72,6 +72,7 @@ class Critic(nn.Module):
         x = self.fc3(x)
         return x
 
+
 Transition = collections.namedtuple(
     typename='Transition',
     field_names=['observation', 'action', 'next_observation', 'reward', 'done']

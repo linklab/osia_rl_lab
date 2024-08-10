@@ -9,6 +9,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.distributions import Normal
+from torch.optim import Adam
+
 import wandb
 from datetime import datetime
 from shutil import copyfile
@@ -21,7 +23,7 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
     env_name = config["env_name"]
     test_env = gym.make(env_name)
 
-    class A3CMaster:
+    class PPOMaster:
         def __init__(
                 self, global_actor, shared_stat, run_wandb, test_env, lock, config
         ):
@@ -120,17 +122,17 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
             })
 
         def model_save(self, validation_episode_reward_avg):
-            filename = "a3c_{0}_{1:4.1f}_{2}.pth".format(
+            filename = "ppo_{0}_{1:4.1f}_{2}.pth".format(
                 self.env_name, validation_episode_reward_avg, self.current_time
             )
             torch.save(self.global_actor.state_dict(), os.path.join(MODEL_DIR, filename))
 
             copyfile(
                 src=os.path.join(MODEL_DIR, filename),
-                dst=os.path.join(MODEL_DIR, "a3c_{0}_latest.pth".format(self.env_name))
+                dst=os.path.join(MODEL_DIR, "ppo_{0}_latest.pth".format(self.env_name))
             )
 
-    master = A3CMaster(
+    master = PPOMaster(
         global_actor=global_actor,
         shared_stat=shared_stat,
         run_wandb=run_wandb,
@@ -149,7 +151,7 @@ def worker_loop(
     env_name = config["env_name"]
     env = gym.make(env_name)
 
-    class A3CAgent:
+    class PPOAgent:
         def __init__(
                 self, worker_id, global_actor, global_critic, global_actor_optimizer, global_critic_optimizer,
                 shared_stat, env, lock, config
@@ -171,9 +173,13 @@ def worker_loop(
             self.global_actor_optimizer = global_actor_optimizer
             self.global_critic_optimizer = global_critic_optimizer
 
+            self.local_actor_optimizer = Adam(self.local_actor.parameters(), lr=config["learning_rate"])
+            self.local_critic_optimizer = Adam(self.local_critic.parameters(), lr=config["learning_rate"])
+
             self.lock = lock
 
             self.max_num_episodes = config["max_num_episodes"]
+            self.ppo_epochs = config["ppo_epochs"]
             self.batch_size = config["batch_size"]
             self.learning_rate = config["learning_rate"]
             self.gamma = config["gamma"]
@@ -187,6 +193,7 @@ def worker_loop(
             self.training_time_steps = 0
 
             self.current_time = datetime.now().astimezone().strftime('%Y-%m-%d_%H-%M-%S')
+
 
         def train_loop(self):
             policy_loss = critic_loss = 0.0
@@ -248,53 +255,56 @@ def worker_loop(
             observations, actions, next_observations, rewards, dones = self.buffer.get()
 
             self.lock.acquire()
+            self.local_critic.load_state_dict(self.global_critic.state_dict())
+            self.local_actor.load_state_dict(self.global_actor.state_dict())
+            self.lock.release()
 
-            # Calculating target values
-            values = self.local_critic(observations).squeeze(dim=-1)
-            next_values = self.local_critic(next_observations).squeeze(dim=-1)
-            next_values[dones] = 0.0
+            old_mu, old_std = self.local_actor.forward(observations)
+            old_dist = Normal(old_mu, old_std)
+            old_action_log_probs = old_dist.log_prob(value=actions).squeeze(dim=-1)
 
-            q_values = rewards.squeeze(dim=-1) + self.gamma * next_values
+            for epoch in range(self.ppo_epochs):
+                # Calculating target values
+                values = self.local_critic(observations).squeeze(dim=-1)
+                next_values = self.local_critic(next_observations).squeeze(dim=-1)
+                next_values[dones] = 0.0
+
+                q_values = rewards.squeeze(dim=-1) + self.gamma * next_values
+
+                # CRITIC UPDATE
+                critic_loss = F.mse_loss(q_values.detach(), values)
+                self.local_critic_optimizer.zero_grad()
+                critic_loss.backward()
+                self.local_critic_optimizer.step()
+
+                # Normalized advantage calculation
+                advantages = q_values - values
+                advantages = (advantages - torch.mean(advantages)) / (torch.std(advantages) + 1e-7)
+
+                # Actor Loss computing
+                mu, std = self.local_actor.forward(observations)
+                dist = Normal(mu, std)
+                action_log_probs = dist.log_prob(value=actions).squeeze(dim=-1)
+
+                ratio = torch.exp(action_log_probs - old_action_log_probs.detach())
+
+                ratio_advantages = ratio * advantages.detach()
+                ratio_advantages_sum = ratio_advantages.sum()
+
+                entropy = dist.entropy().squeeze(dim=-1)
+                entropy_sum = entropy.sum()
+
+                actor_loss = -1.0 * ratio_advantages_sum - 1.0 * entropy_sum * self.entropy_beta
+
+                #Actor Update
+                self.local_actor_optimizer.zero_grad()
+                actor_loss.backward()
+                self.local_actor_optimizer.step()
 
             # CRITIC UPDATE
-            critic_loss = F.mse_loss(q_values.detach(), values)
-            self.global_critic_optimizer.zero_grad()
-            for local_param in self.local_critic.parameters():
-                local_param.grad = None
-            critic_loss.backward()
-            for local_param, global_param in zip(self.local_critic.parameters(), self.global_critic.parameters()):
-                global_param.grad = local_param.grad
-            self.global_critic_optimizer.step()
-            self.local_critic.load_state_dict(self.global_critic.state_dict())
-
-            # Normalized advantage calculation
-            advantages = q_values - values
-            advantages = (advantages - torch.mean(advantages)) / (torch.std(advantages) + 1e-7)
-
-            # Actor Loss computing
-            mu, std = self.local_actor.forward(observations)
-            dist = Normal(mu, std)
-            action_log_probs = dist.log_prob(value=actions).squeeze(dim=-1)  # natural log
-
-            log_pi_advantages = action_log_probs * advantages.detach()
-            log_pi_advantages_sum = log_pi_advantages.sum()
-
-            entropy = dist.entropy().squeeze(dim=-1)
-            entropy_sum = entropy.sum()
-
-            actor_loss = -1.0 * log_pi_advantages_sum - 1.0 * entropy_sum * self.entropy_beta
-
-            # Actor Update
-            self.global_actor_optimizer.zero_grad()
-            for local_param in self.local_actor.parameters():
-                local_param.grad = None
-            actor_loss.backward()
-            for local_param, global_param in zip(self.local_actor.parameters(), self.global_actor.parameters()):
-                global_param.grad = local_param.grad
-            self.global_actor_optimizer.step()
-
-            self.local_actor.load_state_dict(self.global_actor.state_dict())
-
+            self.lock.acquire()
+            self.global_actor.load_state_dict(self.local_actor.state_dict())
+            self.global_critic.load_state_dict(self.local_critic.state_dict())
             self.lock.release()
 
             return (
@@ -305,7 +315,7 @@ def worker_loop(
                 actions.mean().item(),
             )
 
-    agent = A3CAgent(
+    agent = PPOAgent(
         worker_id=process_id,
         global_actor=global_actor,
         global_critic=global_critic,
@@ -338,7 +348,7 @@ class SharedInfo:
         self.is_terminated = mp.Value('I', 0)  # I: unsigned int --> bool
 
 
-class A3C:
+class PPO:
     def __init__(self, config, use_wandb):
         self.config = config
         self.use_wandb = use_wandb
@@ -357,7 +367,7 @@ class A3C:
         if use_wandb:
             current_time = datetime.now().astimezone().strftime('%Y-%m-%d_%H-%M-%S')
             self.run_wandb = wandb.init(
-                project="A3C_{0}".format(config["env_name"]),
+                project="PPO_{0}".format(config["env_name"]),
                 name=current_time,
                 config=config
             )
@@ -407,12 +417,13 @@ def main():
 
     config = {
         "env_name": ENV_NAME,                               # 환경의 이름
-        "num_workers": 8,                                   # 동시 수행 Worker Process 수
+        "num_workers": 4,                                   # 동시 수행 Worker Process 수
         "max_num_episodes": 200_000,                        # 훈련을 위한 최대 에피소드 횟수
+        "ppo_epochs": 10,                                   # PPO 내부 업데이트 횟수
         "batch_size": 256,                                  # 훈련시 배치에서 한번에 가져오는 랜덤 배치 사이즈
         "learning_rate": 0.0003,                            # 학습율
         "gamma": 0.99,                                      # 감가율
-        "entropy_beta": 0.05,                               # 엔트로피 가중치
+        "entropy_beta": 0.03,                               # 엔트로피 가중치
         "print_episode_interval": 20,                       # Episode 통계 출력에 관한 에피소드 간격
         "train_num_episodes_before_next_validation": 100,   # 검증 사이 마다 각 훈련 episode 간격
         "validation_num_episodes": 3,                       # 검증에 수행하는 에피소드 횟수
@@ -420,8 +431,8 @@ def main():
     }
 
     use_wandb = True
-    a3c = A3C(use_wandb=use_wandb, config=config)
-    a3c.train_loop()
+    ppo = PPO(use_wandb=use_wandb, config=config)
+    ppo.train_loop()
 
 
 if __name__ == '__main__':
