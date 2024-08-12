@@ -53,8 +53,8 @@ def test(env: gym.Env | MultiDimKnapsack, q: QNet, num_episodes: int) -> None:
 def main_play() -> None:
     NUM_EPISODES = 3
     ENV_NAME = "MultiDimKnapsack-v0"
-    N_ITEMS = 20
-    N_RESOURCES = 1
+    N_ITEMS = 10
+    N_RESOURCES = 2
 
     def make_env() -> gym.Env:
         env = gym.make(ENV_NAME, n_items=N_ITEMS, n_resources=N_RESOURCES)
