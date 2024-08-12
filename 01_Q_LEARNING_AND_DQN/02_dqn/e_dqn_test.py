@@ -37,7 +37,7 @@ def main_play(num_episodes, env_name):
     env = gym.make(env_name, render_mode="human")
 
     q = QNet(n_features=4, n_actions=2)
-    model_params = torch.load(os.path.join(MODEL_DIR, "dqn_{0}_latest.pth".format(env_name)))
+    model_params = torch.load(os.path.join(MODEL_DIR, "dqn_{0}_latest.pth".format(env_name)), weights_only=True)
     q.load_state_dict(model_params)
     q.eval()
 

@@ -38,7 +38,7 @@ def main_play(num_episodes, env_name):
 
     policy = Policy(n_features=3, n_actions=1)
 
-    model_params = torch.load(os.path.join(MODEL_DIR, "reinforce_{0}_latest.pth".format(env_name)))
+    model_params = torch.load(os.path.join(MODEL_DIR, "reinforce_{0}_latest.pth".format(env_name)), weights_only=True)
     policy.load_state_dict(model_params)
     policy.eval()
 

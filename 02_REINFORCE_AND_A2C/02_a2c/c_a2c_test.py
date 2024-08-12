@@ -37,7 +37,7 @@ def main_play(num_episodes, env_name):
     env = gym.make(env_name, render_mode="human")
 
     actor = Actor(n_features=3, n_actions=1)
-    model_params = torch.load(os.path.join(MODEL_DIR, "a2c_{0}_latest.pth".format(env_name)))
+    model_params = torch.load(os.path.join(MODEL_DIR, "a2c_{0}_latest.pth".format(env_name)), weights_only=True)
     actor.load_state_dict(model_params)
     actor.eval()
 
