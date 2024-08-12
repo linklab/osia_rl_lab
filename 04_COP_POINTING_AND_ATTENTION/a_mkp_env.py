@@ -8,9 +8,9 @@ __all__ = ["MultiDimKnapsack"]
 
 
 class MKPState:
-    _demands: np.ndarray  # (n_items, n_attributes)
+    _demands: np.ndarray  # (n_items, n_resources)
     _values: np.ndarray  # (n_items,)
-    _capacities: np.ndarray  # (n_attributes,)
+    _capacities: np.ndarray  # (n_resources,)
     _value_in_knapsack: float
     _available_items: np.ndarray  # (numbor of available items,)
     _total_value: float
@@ -84,14 +84,22 @@ class MKPState:
         self.values[action] = 0
         self.demands[action] = 0
 
+    def get_full_state(self) -> np.ndarray:
+        n_items = self.values.shape[0]
+        n_demands = self.demands.shape[1]
+        obs = np.zeros((n_items + 1, n_demands + 1))
+        obs[:n_items, :n_demands] = self.demands
+        obs[:n_items, -1] = self.values
+        obs[-1, :n_demands] = self.capacities
+        obs[-1, -1] = self.value_in_knapsack
+        return obs
+
     def get_observation(self) -> np.ndarray:
         n_items = self.values.shape[0]
-        n_attributes = self.demands.shape[1]
-        obs = np.zeros((n_items + 1, n_attributes + 1))
-        obs[:n_items, :n_attributes] = self.demands
-        obs[:n_items, -1] = self.values
-        obs[-1, :n_attributes] = self.capacities
-        obs[-1, -1] = self.value_in_knapsack
+        n_demands = self.demands.shape[1]
+        obs = np.zeros((n_items, n_demands + 1))
+        obs[:, :n_demands] = self.demands / self.capacities
+        obs[:, -1] = self.values / self.total_value
         return obs
 
     def validate_available_items(self) -> None:
@@ -133,13 +141,19 @@ class MultiDimKnapsack(gym.Env):
         self.action_space = spaces.Discrete(n_items)
 
         # Observation space
-        low = np.zeros((n_items + 1, n_resources + 1))
-        high = np.ones((n_items + 1, n_resources + 1))
-        high[-1] = n_items * capacity_rate
+        # low = np.zeros((n_items + 1, n_resources + 1))
+        # high = np.ones((n_items + 1, n_resources + 1))
+        # high[-1] = n_items * capacity_rate
+        # self.observation_space = spaces.Box(
+        #     low=low,
+        #     high=high,
+        #     shape=(n_items + 1, n_resources + 1),
+        #     dtype=float,
+        # )
         self.observation_space = spaces.Box(
-            low=low,
-            high=high,
-            shape=(n_items + 1, n_resources + 1),
+            low=0,
+            high=1,
+            shape=(n_items, n_resources + 1),
             dtype=float,
         )
 
