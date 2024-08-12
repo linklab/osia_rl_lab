@@ -1,4 +1,4 @@
-# https://gymnasium.farama.org/environments/classic_control/pendulum/
+#https://gymnasium.farama.org/environments/classic_control/acrobot/
 import copy
 import os
 import time
@@ -11,7 +11,7 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn.functional as F
 from b_actor_and_critic import MODEL_DIR, Actor, Buffer, Critic, Transition
-from torch.distributions import Normal
+from torch.distributions import Normal, Categorical
 from torch.optim import Adam
 
 import wandb
@@ -39,7 +39,8 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
 
             self.current_time = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S")
 
-            self.last_episode_wandb_log = 0
+            self.last_global_episode_for_validation = 0
+            self.last_global_episode_wandb_log = 0
 
         def validate_loop(self):
             total_train_start_time = time.time()
@@ -48,8 +49,10 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
                 validation_conditions = [
                     self.shared_stat.global_episodes.value != 0,
                     self.shared_stat.global_episodes.value % self.train_num_episodes_before_next_validation == 0,
+                    self.shared_stat.global_episodes.value > self.last_global_episode_for_validation
                 ]
                 if all(validation_conditions):
+                    self.last_global_episode_for_validation = self.shared_stat.global_episodes.value
                     self.lock.acquire()
                     validation_episode_reward_lst, validation_episode_reward_avg = self.validate()
 
@@ -75,12 +78,12 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
 
                 wandb_log_conditions = [
                     self.run_wandb,
-                    self.shared_stat.global_episodes.value > self.last_episode_wandb_log,
+                    self.shared_stat.global_episodes.value > self.last_global_episode_wandb_log,
                     self.shared_stat.global_episodes.value > self.train_num_episodes_before_next_validation,
                 ]
                 if all(wandb_log_conditions):
-                    self.log_wandb(validation_episode_reward_avg)
-                    self.last_episode_wandb_log = self.shared_stat.global_episodes.value
+                    self.log_wandb(validation_global_episode_reward_avg)
+                    self.last_global_episode_wandb_log = self.shared_stat.global_episodes.value
 
                 if bool(self.shared_stat.is_terminated.value):
                     for _ in range(5):
@@ -98,7 +101,7 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
 
                 while not done:
                     action = self.global_actor.get_action(observation, exploration=False)
-                    next_observation, reward, terminated, truncated, _ = self.test_env.step(action * 2)
+                    next_observation, reward, terminated, truncated, _ = self.test_env.step(action)
                     episode_reward += reward
                     observation = next_observation
                     done = terminated or truncated
@@ -201,7 +204,7 @@ def worker_loop(process_id, global_actor, global_critic, shared_stat, lock, conf
                     self.shared_stat.global_time_steps.value += 1
 
                     action = self.local_actor.get_action(observation)
-                    next_observation, reward, terminated, truncated, _ = self.env.step(action * 2)
+                    next_observation, reward, terminated, truncated, _ = self.env.step(action)
 
                     episode_reward += reward
 
@@ -213,12 +216,9 @@ def worker_loop(process_id, global_actor, global_critic, shared_stat, lock, conf
                     done = terminated or truncated
 
                     if self.time_steps % self.batch_size == 0:
-                        policy_loss, critic_loss, avg_mu_v, avg_std_v, avg_action = self.train()
+                        policy_loss, critic_loss = self.train()
                         self.shared_stat.last_policy_loss.value = policy_loss
                         self.shared_stat.last_critic_loss.value = critic_loss
-                        self.shared_stat.last_avg_mu_v.value = avg_mu_v
-                        self.shared_stat.last_avg_std_v.value = avg_std_v
-                        self.shared_stat.last_avg_action.value = avg_action
 
                         self.buffer.clear()
 
@@ -249,8 +249,8 @@ def worker_loop(process_id, global_actor, global_critic, shared_stat, lock, conf
             self.local_actor.load_state_dict(self.global_actor.state_dict())
             self.lock.release()
 
-            old_mu, old_std = self.local_actor.forward(observations)
-            old_dist = Normal(old_mu, old_std)
+            old_mu = self.local_actor.forward(observations)
+            old_dist = Categorical(probs=old_mu)
             old_action_log_probs = old_dist.log_prob(value=actions).squeeze(dim=-1)
 
             for epoch in range(self.ppo_epochs):
@@ -272,8 +272,8 @@ def worker_loop(process_id, global_actor, global_critic, shared_stat, lock, conf
                 advantages = (advantages - torch.mean(advantages)) / (torch.std(advantages) + 1e-7)
 
                 # Actor Loss computing
-                mu, std = self.local_actor.forward(observations)
-                dist = Normal(mu, std)
+                mu = self.local_actor.forward(observations)
+                dist = Categorical(probs=mu)
                 action_log_probs = dist.log_prob(value=actions).squeeze(dim=-1)
 
                 ratio = torch.exp(action_log_probs - old_action_log_probs.detach())
@@ -303,9 +303,6 @@ def worker_loop(process_id, global_actor, global_critic, shared_stat, lock, conf
             return (
                 actor_loss.item(),
                 critic_loss.item(),
-                mu.mean().item(),
-                std.mean().item(),
-                actions.mean().item(),
             )
 
     agent = PPOAgent(
@@ -331,9 +328,6 @@ class SharedInfo:
         self.last_episode_reward = mp.Value("d", 0.0)  # d: double
         self.last_policy_loss = mp.Value("d", 0.0)  # d: double
         self.last_critic_loss = mp.Value("d", 0.0)  # d: double
-        self.last_avg_mu_v = mp.Value("d", 0.0)  # d: double
-        self.last_avg_std_v = mp.Value("d", 0.0)  # d: double
-        self.last_avg_action = mp.Value("d", 0.0)  # d: double
 
         self.is_terminated = mp.Value("I", 0)  # I: unsigned int --> bool
 
@@ -345,8 +339,8 @@ class PPO:
         self.num_workers = min(config["num_workers"], mp.cpu_count() - 1)
 
         # Initialize global models and optimizers
-        self.global_actor = Actor(n_features=3, n_actions=1).share_memory()
-        self.global_critic = Critic(n_features=3).share_memory()
+        self.global_actor = Actor(n_features=6, n_actions=3).share_memory()
+        self.global_critic = Critic(n_features=6).share_memory()
 
         self.lock = mp.Lock()
         self.shared_stat = SharedInfo()
@@ -390,11 +384,11 @@ class PPO:
 
 def main():
     print("TORCH VERSION:", torch.__version__)
-    ENV_NAME = "Pendulum-v1"
+    ENV_NAME = "Acrobot-v1"
 
     config = {
         "env_name": ENV_NAME,  # 환경의 이름
-        "num_workers": 4,  # 동시 수행 Worker Process 수
+        "num_workers": 1,  # 동시 수행 Worker Process 수
         "max_num_episodes": 200_000,  # 훈련을 위한 최대 에피소드 횟수
         "ppo_epochs": 10,  # PPO 내부 업데이트 횟수
         "ppo_clip_coefficient": 0.2,  # PPO Ratio Clip Coefficient
@@ -408,7 +402,7 @@ def main():
         "episode_reward_avg_solved": -150,  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
     }
 
-    use_wandb = True
+    use_wandb = False
     ppo = PPO(use_wandb=use_wandb, config=config)
     ppo.train_loop()
 

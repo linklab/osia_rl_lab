@@ -101,9 +101,6 @@ class DQN:
                 if self.total_time_steps % self.steps_between_train == 0 and self.time_steps > self.batch_size:
                     loss = self.train()
 
-            total_training_time = time.time() - total_train_start_time
-            total_training_time = time.strftime("%H:%M:%S", time.gmtime(total_training_time))
-
             if n_episode % self.print_episode_interval == 0:
                 print(
                     "[Episode {:3,}, Time Steps {:6,}]".format(n_episode, self.time_steps),
@@ -111,16 +108,18 @@ class DQN:
                     "Replay buffer: {:>6,},".format(self.replay_buffer.size()),
                     "Loss: {:6.3f},".format(loss),
                     "Epsilon: {:4.2f},".format(epsilon),
-                    "Training Steps: {:5,},".format(self.training_time_steps),
-                    "Elapsed Time: {}".format(total_training_time),
+                    "Training Steps: {:5,},".format(self.training_time_steps)
                 )
 
             if n_episode % self.train_num_episodes_before_next_validation == 0:
                 validation_episode_reward_lst, validation_episode_reward_avg = self.validate()
 
+                total_training_time = time.time() - total_train_start_time
+                total_training_time = time.strftime("%H:%M:%S", time.gmtime(total_training_time))
+
                 print(
-                    "[Validation Episode Reward: {0}] Average: {1:.3f}".format(
-                        validation_episode_reward_lst, validation_episode_reward_avg
+                    "[Validation Episode Reward: {0}] Average: {1:.3f}, Elapsed Time: {2}".format(
+                        validation_episode_reward_lst, validation_episode_reward_avg, total_training_time
                     )
                 )
 

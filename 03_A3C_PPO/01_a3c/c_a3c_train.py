@@ -346,7 +346,6 @@ class SharedInfo:
         self.last_avg_mu_v = mp.Value("d", 0.0)  # d: double
         self.last_avg_std_v = mp.Value("d", 0.0)  # d: double
         self.last_avg_action = mp.Value("d", 0.0)  # d: double
-        self.last_avg_action_prob = mp.Value("d", 0.0)  # d: double
 
         self.is_terminated = mp.Value("I", 0)  # I: unsigned int --> bool
 
