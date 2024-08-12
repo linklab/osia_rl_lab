@@ -1,9 +1,11 @@
 import random
 import time
 
+import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
-import gymnasium as gym; print(f"gym.__version__: {gym.__version__}")
+
+print(f"gym.__version__: {gym.__version__}")
 
 
 np.set_printoptions(precision=3)
@@ -17,7 +19,7 @@ DESC = None
 
 
 class QTableAgent:
-    def __init__(self, env, num_episodes, validation_num_episodes, alpha, gamma, epsilon):
+    def __init__(self, env: gym.Env, num_episodes: int, validation_num_episodes: int, alpha: float, gamma: float, epsilon: float):
         self.env = env
         self.num_episodes = num_episodes
         self.validation_num_episodes = validation_num_episodes
@@ -26,30 +28,24 @@ class QTableAgent:
         self.epsilon = epsilon
 
         # Q-Table 초기화
-        self.q_table = np.zeros(
-            [env.observation_space.n, env.action_space.n]
-        )
+        self.q_table = np.zeros([env.observation_space.n, env.action_space.n])
 
-    def greedy_action(self, observation):
+    def greedy_action(self, observation: np.ndarray) -> int:
         action_values = self.q_table[observation, :]
         max_value = np.max(action_values)
-        action = np.random.choice(
-            [action_ for action_, value_ in enumerate(action_values) if value_ == max_value]
-        )
+        action = np.random.choice([action_ for action_, value_ in enumerate(action_values) if value_ == max_value])
         return action
 
-    def epsilon_greedy_action(self, observation):
+    def epsilon_greedy_action(self, observation: np.ndarray) -> int:
         action_values = self.q_table[observation, :]
         if np.random.rand() < self.epsilon:
             action = random.choice(range(len(action_values)))
         else:
             max_value = np.max(action_values)
-            action = np.random.choice(
-                [action_ for action_, value_ in enumerate(action_values) if value_ == max_value]
-            )
+            action = np.random.choice([action_ for action_, value_ in enumerate(action_values) if value_ == max_value])
         return action
 
-    def train(self):
+    def train(self) -> tuple[list[float], list[float], bool]:
         episode_reward_list = []
         episode_td_error_list = []
 
@@ -73,8 +69,7 @@ class QTableAgent:
                 episode_reward += reward
 
                 # Q-Learning
-                td_error = reward + self.gamma * np.max(self.q_table[next_observation, :]) \
-                           - self.q_table[observation, action]
+                td_error = reward + self.gamma * np.max(self.q_table[next_observation, :]) - self.q_table[observation, action]
 
                 self.q_table[observation, action] = self.q_table[observation, action] + self.alpha * td_error
                 episode_td_error += td_error
@@ -87,20 +82,24 @@ class QTableAgent:
                 done = terminated or truncated
 
             print(
-                "[EPISODE: {0:>2}]".format(episode + 1, observation),
+                "[EPISODE: {0:>2}]".format(
+                    episode + 1,
+                ),
                 "Episode Steps: {0:>2}, Visited States Length: {1:>2}, Episode Reward: {2}".format(
                     episode_step, len(visited_states), episode_reward
                 ),
-                "GOAL" if done and observation == 15 else ""
+                "GOAL" if done and observation == 15 else "",
             )
             episode_reward_list.append(episode_reward)
             episode_td_error_list.append(episode_td_error / episode_step)
 
             if (episode + 1) % 10 == 0:
                 episode_reward_list_test, avg_episode_reward_test = self.validate()
-                print("[VALIDATION RESULTS: {0} Episodes, Episode Reward List: {1}] Episode Reward Mean: {2:.3f}".format(
-                    self.validation_num_episodes, episode_reward_list_test, avg_episode_reward_test
-                ))
+                print(
+                    "[VALIDATION RESULTS: {0} Episodes, Episode Reward List: {1}] Episode Reward Mean: {2:.3f}".format(
+                        self.validation_num_episodes, episode_reward_list_test, avg_episode_reward_test
+                    )
+                )
                 if avg_episode_reward_test == 1.0:
                     print("***** TRAINING DONE!!! *****")
                     is_train_success = True
@@ -108,10 +107,10 @@ class QTableAgent:
 
         return episode_reward_list, episode_td_error_list, is_train_success
 
-    def validate(self):
+    def validate(self) -> tuple[list[float], float]:
         episode_reward_lst = np.zeros(shape=(self.validation_num_episodes,), dtype=float)
 
-        test_env = gym.make('FrozenLake-v1', desc=DESC, map_name=MAP_NAME, is_slippery=IS_SLIPPERY)
+        test_env = gym.make("FrozenLake-v1", desc=DESC, map_name=MAP_NAME, is_slippery=IS_SLIPPERY)
 
         for episode in range(self.validation_num_episodes):
             episode_reward = 0  # cumulative_reward
@@ -132,17 +131,21 @@ class QTableAgent:
         return episode_reward_lst, np.mean(episode_reward_lst)
 
 
-def main():
+def main() -> None:
     NUM_EPISODES = 200
     VALIDATION_NUM_EPISODES = 10
     ALPHA = 0.1
     GAMMA = 0.95
     EPSILON = 0.1
 
-    env = gym.make('FrozenLake-v1', desc=DESC, map_name=MAP_NAME, is_slippery=IS_SLIPPERY)
+    env = gym.make("FrozenLake-v1", desc=DESC, map_name=MAP_NAME, is_slippery=IS_SLIPPERY)
     q_table_agent = QTableAgent(
-        env=env, num_episodes=NUM_EPISODES, validation_num_episodes=VALIDATION_NUM_EPISODES,
-        alpha=ALPHA, gamma=GAMMA, epsilon=EPSILON
+        env=env,
+        num_episodes=NUM_EPISODES,
+        validation_num_episodes=VALIDATION_NUM_EPISODES,
+        alpha=ALPHA,
+        gamma=GAMMA,
+        epsilon=EPSILON,
     )
 
     episode_reward_list, episode_td_error_list, is_train_success = q_table_agent.train()
@@ -170,8 +173,8 @@ def main():
         print("NO PLAYING!!!")
 
 
-def q_learning_test(q_table_agent):
-    play_env = gym.make('FrozenLake-v1', desc=DESC, map_name=MAP_NAME, is_slippery=IS_SLIPPERY, render_mode="human")
+def q_learning_test(q_table_agent: QTableAgent) -> None:
+    play_env = gym.make("FrozenLake-v1", desc=DESC, map_name=MAP_NAME, is_slippery=IS_SLIPPERY, render_mode="human")
     observation, _ = play_env.reset()
     time.sleep(1)
 

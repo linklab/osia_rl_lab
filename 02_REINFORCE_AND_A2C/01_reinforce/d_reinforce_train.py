@@ -12,11 +12,11 @@ import torch.optim as optim
 import wandb
 from torch.distributions import Normal
 
-from c_policy_and_value import DEVICE, MODEL_DIR, Policy, Transition, Buffer, StateValueNet
+from c_policy_and_value import DEVICE, MODEL_DIR, Buffer, Policy, StateValueNet, Transition
 
 
 class REINFORCE:
-    def __init__(self, env, test_env, config, use_baseline, use_wandb):
+    def __init__(self, env: gym.Env, test_env: gym.Env, config: dict, use_baseline: bool, use_wandb: bool):
         self.env = env
         self.test_env = test_env
         self.use_baseline = use_baseline
@@ -24,14 +24,10 @@ class REINFORCE:
 
         self.env_name = config["env_name"]
 
-        self.current_time = datetime.now().astimezone().strftime('%Y-%m-%d_%H-%M-%S')
+        self.current_time = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S")
 
         if self.use_wandb:
-            self.wandb = wandb.init(
-                project="REINFORCE_{0}".format(self.env_name),
-                name=self.current_time,
-                config=config
-            )
+            self.wandb = wandb.init(project="REINFORCE_{0}".format(self.env_name), name=self.current_time, config=config)
 
         self.max_num_episodes = config["max_num_episodes"]
         self.learning_rate = config["learning_rate"]
@@ -53,7 +49,7 @@ class REINFORCE:
         self.time_steps = 0
         self.training_time_steps = 0
 
-    def train_loop(self):
+    def train_loop(self) -> None:
         total_train_start_time = time.time()
 
         validation_episode_reward_avg = -1500
@@ -92,60 +88,69 @@ class REINFORCE:
                     "[Episode {:3,}, Steps {:6,}]".format(n_episode, self.time_steps),
                     "Episode Reward: {:>9.3f},".format(episode_reward),
                     "Policy Loss: {:>7.3f},".format(policy_loss),
-                    "Training Steps: {:5,}".format(self.training_time_steps)                )
+                    "Training Steps: {:5,}".format(self.training_time_steps),
+                )
 
             if n_episode % self.train_num_episodes_before_next_validation == 0:
                 validation_episode_reward_lst, validation_episode_reward_avg = self.validate()
 
                 total_training_time = time.time() - total_train_start_time
-                total_training_time = time.strftime('%H:%M:%S', time.gmtime(total_training_time))
+                total_training_time = time.strftime("%H:%M:%S", time.gmtime(total_training_time))
 
-                print("[Validation Episode Reward: {0}] Average: {1:.3f}, Elapsed Time: {2}".format(
-                    validation_episode_reward_lst, validation_episode_reward_avg, total_training_time
-                ))
+                print(
+                    "[Validation Episode Reward: {0}] Average: {1:.3f}, Elapsed Time: {2}".format(
+                        validation_episode_reward_lst, validation_episode_reward_avg, total_training_time
+                    )
+                )
 
                 if validation_episode_reward_avg > self.episode_reward_avg_solved:
-                    print("Solved in {0:,} steps ({1:,} training steps)!".format(
-                        self.time_steps, self.training_time_steps
-                    ))
+                    print("Solved in {0:,} steps ({1:,} training steps)!".format(self.time_steps, self.training_time_steps))
                     self.model_save(validation_episode_reward_avg)
                     is_terminated = True
 
             if self.use_wandb and n_episode > self.train_num_episodes_before_next_validation:
                 self.log_wandb(
-                    validation_episode_reward_avg, episode_reward, policy_loss, avg_mu_v, avg_std_v, avg_action,
-                    n_episode
+                    validation_episode_reward_avg, episode_reward, policy_loss, avg_mu_v, avg_std_v, avg_action, n_episode
                 )
 
             if is_terminated:
                 for _ in range(5):
                     self.log_wandb(
-                        validation_episode_reward_avg, episode_reward, policy_loss, avg_mu_v, avg_std_v, avg_action,
-                        n_episode
+                        validation_episode_reward_avg, episode_reward, policy_loss, avg_mu_v, avg_std_v, avg_action, n_episode
                     )
                 break
 
         total_training_time = time.time() - total_train_start_time
-        total_training_time = time.strftime('%H:%M:%S', time.gmtime(total_training_time))
+        total_training_time = time.strftime("%H:%M:%S", time.gmtime(total_training_time))
         print("Total Training End : {}".format(total_training_time))
         self.wandb.finish()
 
     def log_wandb(
-            self, validation_episode_reward_avg, episode_reward, policy_loss, avg_mu_v, avg_std_v, avg_action, n_episode
-    ):
-        self.wandb.log({
-            "[VALIDATION] Mean Episode Reward ({0} Episodes)".format(
-                self.validation_num_episodes): validation_episode_reward_avg,
-            "[TRAIN] Episode Reward": episode_reward,
-            "[TRAIN] Policy Loss": policy_loss,
-            "[TRAIN] avg_mu_v": avg_mu_v,
-            "[TRAIN] avg_std_v": avg_std_v,
-            "[TRAIN] avg_action": avg_action,
-            "Training Episode": n_episode,
-            "Training Steps": self.training_time_steps,
-        })
+        self,
+        validation_episode_reward_avg: float,
+        episode_reward: float,
+        policy_loss: float,
+        avg_mu_v: float,
+        avg_std_v: float,
+        avg_action: float,
+        n_episode: int
+    ) -> None:
+        self.wandb.log(
+            {
+                "[VALIDATION] Mean Episode Reward ({0} Episodes)".format(
+                    self.validation_num_episodes
+                ): validation_episode_reward_avg,
+                "[TRAIN] Episode Reward": episode_reward,
+                "[TRAIN] Policy Loss": policy_loss,
+                "[TRAIN] avg_mu_v": avg_mu_v,
+                "[TRAIN] avg_std_v": avg_std_v,
+                "[TRAIN] avg_action": avg_action,
+                "Training Episode": n_episode,
+                "Training Steps": self.training_time_steps,
+            }
+        )
 
-    def train(self):
+    def train(self) -> tuple[float, float, float, float]:
         self.training_time_steps += 1
 
         observations, actions, next_observations, rewards, dones = self.buffer.get()
@@ -164,7 +169,7 @@ class REINFORCE:
         dist = Normal(loc=mu_v, scale=std_v)
         action_log_probs = dist.log_prob(value=actions).squeeze(dim=-1)  # natural log
 
-        #print(action_log_probs.mean(), torch.exp(action_log_probs).mean(), torch.normal(mu_v, std_v).mean())
+        # print(action_log_probs.mean(), torch.exp(action_log_probs).mean(), torch.normal(mu_v, std_v).mean())
 
         if self.use_baseline:
             values = self.state_value_net(observations).squeeze(dim=-1)
@@ -204,18 +209,15 @@ class REINFORCE:
             actions.mean().item(),
         )
 
-    def model_save(self, validation_episode_reward_avg):
-        filename = "reinforce_{0}_{1:4.1f}_{2}.pth".format(
-            self.env_name, validation_episode_reward_avg, self.current_time
-        )
+    def model_save(self, validation_episode_reward_avg: float) -> None:
+        filename = "reinforce_{0}_{1:4.1f}_{2}.pth".format(self.env_name, validation_episode_reward_avg, self.current_time)
         torch.save(self.policy.state_dict(), os.path.join(MODEL_DIR, filename))
 
         copyfile(
-            src=os.path.join(MODEL_DIR, filename),
-            dst=os.path.join(MODEL_DIR, "reinforce_{0}_latest.pth".format(self.env_name))
+            src=os.path.join(MODEL_DIR, filename), dst=os.path.join(MODEL_DIR, "reinforce_{0}_latest.pth".format(self.env_name))
         )
 
-    def validate(self):
+    def validate(self) -> tuple[np.ndarray, float]:
         episode_reward_lst = np.zeros(shape=(self.validation_num_episodes,), dtype=float)
 
         for i in range(self.validation_num_episodes):
@@ -239,7 +241,7 @@ class REINFORCE:
         return episode_reward_lst, np.average(episode_reward_lst)
 
 
-def main():
+def main() -> None:
     print("TORCH VERSION:", torch.__version__)
     ENV_NAME = "Pendulum-v1"
 
@@ -248,22 +250,20 @@ def main():
     test_env = gym.make(ENV_NAME)
 
     config = {
-        "env_name": ENV_NAME,                       # 환경의 이름
-        "max_num_episodes": 200_000,                # 훈련을 위한 최대 에피소드 횟수
-        "learning_rate": 0.0003,                    # 학습율
-        "gamma": 0.99,                              # 감가율
-        "print_episode_interval": 20,               # Episode 통계 출력에 관한 에피소드 간격
-        "train_num_episodes_before_next_validation": 100,                  # 검증 사이 마다 각 훈련 episode 간격
-        "validation_num_episodes": 3,               # 검증에 수행하는 에피소드 횟수
-        "episode_reward_avg_solved": -150,          # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
+        "env_name": ENV_NAME,  # 환경의 이름
+        "max_num_episodes": 200_000,  # 훈련을 위한 최대 에피소드 횟수
+        "learning_rate": 0.0003,  # 학습율
+        "gamma": 0.99,  # 감가율
+        "print_episode_interval": 20,  # Episode 통계 출력에 관한 에피소드 간격
+        "train_num_episodes_before_next_validation": 100,  # 검증 사이 마다 각 훈련 episode 간격
+        "validation_num_episodes": 3,  # 검증에 수행하는 에피소드 횟수
+        "episode_reward_avg_solved": -150,  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
     }
 
     use_wandb = True
-    reinforce = REINFORCE(
-        env=env, test_env=test_env, config=config, use_baseline=True, use_wandb=use_wandb
-    )
+    reinforce = REINFORCE(env=env, test_env=test_env, config=config, use_baseline=True, use_wandb=use_wandb)
     reinforce.train_loop()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

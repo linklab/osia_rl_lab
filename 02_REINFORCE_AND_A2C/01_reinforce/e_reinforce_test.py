@@ -7,7 +7,7 @@ import torch
 from c_policy_and_value import MODEL_DIR, Policy
 
 
-def test(env, policy, num_episodes):
+def test(env: gym.Env, policy: Policy, num_episodes: int) -> None:
     for i in range(num_episodes):
         episode_reward = 0  # cumulative_reward
 
@@ -28,12 +28,10 @@ def test(env, policy, num_episodes):
             observation = next_observation
             done = terminated or truncated
 
-        print("[EPISODE: {0}] EPISODE_STEPS: {1:3d}, EPISODE REWARD: {2:4.1f}".format(
-            i, episode_steps, episode_reward
-        ))
+        print("[EPISODE: {0}] EPISODE_STEPS: {1:3d}, EPISODE REWARD: {2:4.1f}".format(i, episode_steps, episode_reward))
 
 
-def main_play(num_episodes, env_name):
+def main_play(num_episodes: int, env_name: str) -> None:
     env = gym.make(env_name, render_mode="human")
 
     policy = Policy(n_features=3, n_actions=1)

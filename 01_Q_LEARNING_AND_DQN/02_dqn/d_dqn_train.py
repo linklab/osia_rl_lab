@@ -11,25 +11,21 @@ import torch.nn.functional as F
 import torch.optim as optim
 import wandb
 
-from c_qnet import QNet, ReplayBuffer, Transition, MODEL_DIR
+from c_qnet import MODEL_DIR, QNet, ReplayBuffer, Transition
 
 
 class DQN:
-    def __init__(self, env, test_env, config, use_wandb):
+    def __init__(self, env: gym.Env, test_env: gym.Env, config: dict, use_wandb: bool):
         self.env = env
         self.test_env = test_env
         self.use_wandb = use_wandb
 
         self.env_name = config["env_name"]
 
-        self.current_time = datetime.now().astimezone().strftime('%Y-%m-%d_%H-%M-%S')
+        self.current_time = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S")
 
         if self.use_wandb:
-            self.wandb = wandb.init(
-                project="DQN_{0}".format(self.env_name),
-                name=self.current_time,
-                config=config
-            )
+            self.wandb = wandb.init(project="DQN_{0}".format(self.env_name), name=self.current_time, config=config)
 
         self.max_num_episodes = config["max_num_episodes"]
         self.batch_size = config["batch_size"]
@@ -62,16 +58,13 @@ class DQN:
         self.total_time_steps = 0
         self.training_time_steps = 0
 
-    def epsilon_scheduled(self, current_episode):
+    def epsilon_scheduled(self, current_episode: int) -> float:
         fraction = min(current_episode / self.epsilon_scheduled_last_episode, 1.0)
 
-        epsilon = min(
-            self.epsilon_start + fraction * (self.epsilon_end - self.epsilon_start),
-            self.epsilon_start
-        )
+        epsilon = min(self.epsilon_start + fraction * (self.epsilon_end - self.epsilon_start), self.epsilon_start)
         return epsilon
 
-    def train_loop(self):
+    def train_loop(self) -> None:
         loss = 0.0
 
         total_train_start_time = time.time()
@@ -109,7 +102,7 @@ class DQN:
                     loss = self.train()
 
             total_training_time = time.time() - total_train_start_time
-            total_training_time = time.strftime('%H:%M:%S', time.gmtime(total_training_time))
+            total_training_time = time.strftime("%H:%M:%S", time.gmtime(total_training_time))
 
             if n_episode % self.print_episode_interval == 0:
                 print(
@@ -119,43 +112,47 @@ class DQN:
                     "Loss: {:6.3f},".format(loss),
                     "Epsilon: {:4.2f},".format(epsilon),
                     "Training Steps: {:5,},".format(self.training_time_steps),
-                    "Elapsed Time: {}".format(total_training_time)
+                    "Elapsed Time: {}".format(total_training_time),
                 )
 
             if n_episode % self.train_num_episodes_before_next_validation == 0:
                 validation_episode_reward_lst, validation_episode_reward_avg = self.validate()
 
-                print("[Validation Episode Reward: {0}] Average: {1:.3f}".format(
-                    validation_episode_reward_lst, validation_episode_reward_avg
-                ))
+                print(
+                    "[Validation Episode Reward: {0}] Average: {1:.3f}".format(
+                        validation_episode_reward_lst, validation_episode_reward_avg
+                    )
+                )
 
                 if validation_episode_reward_avg > self.episode_reward_avg_solved:
-                    print("Solved in {0:,} steps ({1:,} training steps)!".format(
-                        self.time_steps, self.training_time_steps
-                    ))
+                    print("Solved in {0:,} steps ({1:,} training steps)!".format(self.time_steps, self.training_time_steps))
                     self.model_save(validation_episode_reward_avg)
                     is_terminated = True
 
             if self.use_wandb:
-                self.wandb.log({
-                    "[VALIDATION] Mean Episode Reward ({0} Episodes)".format(self.validation_num_episodes): validation_episode_reward_avg,
-                    "[TRAIN] Episode Reward": episode_reward,
-                    "[TRAIN] Loss": loss if loss != 0.0 else 0.0,
-                    "[TRAIN] Epsilon": epsilon,
-                    "[TRAIN] Replay buffer": self.replay_buffer.size(),
-                    "Training Episode": n_episode,
-                    "Training Steps": self.training_time_steps
-                })
+                self.wandb.log(
+                    {
+                        "[VALIDATION] Mean Episode Reward ({0} Episodes)".format(
+                            self.validation_num_episodes
+                        ): validation_episode_reward_avg,
+                        "[TRAIN] Episode Reward": episode_reward,
+                        "[TRAIN] Loss": loss if loss != 0.0 else 0.0,
+                        "[TRAIN] Epsilon": epsilon,
+                        "[TRAIN] Replay buffer": self.replay_buffer.size(),
+                        "Training Episode": n_episode,
+                        "Training Steps": self.training_time_steps,
+                    }
+                )
 
             if is_terminated:
                 break
 
         total_training_time = time.time() - total_train_start_time
-        total_training_time = time.strftime('%H:%M:%S', time.gmtime(total_training_time))
+        total_training_time = time.strftime("%H:%M:%S", time.gmtime(total_training_time))
         print("Total Training End : {}".format(total_training_time))
         self.wandb.finish()
 
-    def train(self):
+    def train(self) -> float:
         self.training_time_steps += 1
 
         batch = self.replay_buffer.sample(self.batch_size)
@@ -205,18 +202,13 @@ class DQN:
 
         return loss.item()
 
-    def model_save(self, validation_episode_reward_avg):
-        filename = "dqn_{0}_{1:4.1f}_{2}.pth".format(
-            self.env_name, validation_episode_reward_avg, self.current_time
-        )
+    def model_save(self, validation_episode_reward_avg: float) -> None:
+        filename = "dqn_{0}_{1:4.1f}_{2}.pth".format(self.env_name, validation_episode_reward_avg, self.current_time)
         torch.save(self.q.state_dict(), os.path.join(MODEL_DIR, filename))
 
-        copyfile(
-            src=os.path.join(MODEL_DIR, filename),
-            dst=os.path.join(MODEL_DIR, "dqn_{0}_latest.pth".format(self.env_name))
-        )
+        copyfile(src=os.path.join(MODEL_DIR, filename), dst=os.path.join(MODEL_DIR, "dqn_{0}_latest.pth".format(self.env_name)))
 
-    def validate(self):
+    def validate(self) -> tuple[np.ndarray, float]:
         episode_reward_lst = np.zeros(shape=(self.validation_num_episodes,), dtype=float)
 
         for i in range(self.validation_num_episodes):
@@ -240,7 +232,7 @@ class DQN:
         return episode_reward_lst, np.average(episode_reward_lst)
 
 
-def main():
+def main() -> None:
     print("TORCH VERSION:", torch.__version__)
     ENV_NAME = "CartPole-v1"
 
@@ -248,29 +240,27 @@ def main():
     test_env = gym.make(ENV_NAME)
 
     config = {
-        "env_name": ENV_NAME,                       # 환경의 이름
-        "max_num_episodes": 1_500,                  # 훈련을 위한 최대 에피소드 횟수
-        "batch_size": 32,                           # 훈련시 배치에서 한번에 가져오는 랜덤 배치 사이즈
-        "learning_rate": 0.0001,                    # 학습율
-        "gamma": 0.99,                              # 감가율
-        "steps_between_train": 1,                   # 훈련 사이의 환경 스텝 수
-        "target_sync_step_interval": 500,           # 기존 Q 모델을 타깃 Q 모델로 동기화시키는 step 간격
-        "replay_buffer_size": 30_000,               # 리플레이 버퍼 사이즈
-        "epsilon_start": 0.95,                      # Epsilon 초기 값
-        "epsilon_end": 0.01,                        # Epsilon 최종 값
-        "epsilon_final_scheduled_percent": 0.75,    # Epsilon 최종 값으로 스케줄되는 마지막 에피소드 비율
-        "print_episode_interval": 10,               # Episode 통계 출력에 관한 에피소드 간격
-        "train_num_episodes_before_next_validation": 50,                   # 검증 사이 마다 각 훈련 episode 간격
+        "env_name": ENV_NAME,                             # 환경의 이름
+        "max_num_episodes": 1_500,                        # 훈련을 위한 최대 에피소드 횟수
+        "batch_size": 32,                                 # 훈련시 배치에서 한번에 가져오는 랜덤 배치 사이즈
+        "learning_rate": 0.0001,                          # 학습율
+        "gamma": 0.99,                                    # 감가율
+        "steps_between_train": 1,                         # 훈련 사이의 환경 스텝 수
+        "target_sync_step_interval": 500,                 # 기존 Q 모델을 타깃 Q 모델로 동기화시키는 step 간격
+        "replay_buffer_size": 30_000,                     # 리플레이 버퍼 사이즈
+        "epsilon_start": 0.95,                            # Epsilon 초기 값
+        "epsilon_end": 0.01,                              # Epsilon 최종 값
+        "epsilon_final_scheduled_percent": 0.75,          # Epsilon 최종 값으로 스케줄되는 마지막 에피소드 비율
+        "print_episode_interval": 10,                     # Episode 통계 출력에 관한 에피소드 간격
+        "train_num_episodes_before_next_validation": 50,  # 검증 사이 마다 각 훈련 episode 간격
         "validation_num_episodes": 3,                     # 검증에 수행하는 에피소드 횟수
-        "episode_reward_avg_solved": 490,           # 훈련 종료를 위한 검증 에피소드 리워드의 Average
+        "episode_reward_avg_solved": 490,                 # 훈련 종료를 위한 검증 에피소드 리워드의 Average
     }
 
     use_wandb = True
-    dqn = DQN(
-        env=env, test_env=test_env, config=config, use_wandb=use_wandb
-    )
+    dqn = DQN(env=env, test_env=test_env, config=config, use_wandb=use_wandb)
     dqn.train_loop()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -3,11 +3,10 @@ import os
 
 import gymnasium as gym
 import torch
-
 from b_actor_and_critic import MODEL_DIR, Actor
 
 
-def test(env, actor, num_episodes):
+def test(env: gym.Env, actor: Actor, num_episodes: int) -> None:
     for i in range(num_episodes):
         episode_reward = 0  # cumulative_reward
 
@@ -28,12 +27,10 @@ def test(env, actor, num_episodes):
             observation = next_observation
             done = terminated or truncated
 
-        print("[EPISODE: {0}] EPISODE_STEPS: {1:3d}, EPISODE REWARD: {2:4.1f}".format(
-            i, episode_steps, episode_reward
-        ))
+        print("[EPISODE: {0}] EPISODE_STEPS: {1:3d}, EPISODE REWARD: {2:4.1f}".format(i, episode_steps, episode_reward))
 
 
-def main_play(num_episodes, env_name):
+def main_play(num_episodes: int, env_name: gym.Env) -> None:
     env = gym.make(env_name, render_mode="human")
 
     actor = Actor(n_features=3, n_actions=1)

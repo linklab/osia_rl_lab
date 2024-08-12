@@ -5,12 +5,12 @@ import gymnasium as gym
 import numpy as np
 
 print("gym.__version__:", gym.__version__)
-np.set_printoptions(formatter={'float': '{:5.2f}'.format})
+np.set_printoptions(formatter={"float": "{:5.2f}".format})
 
-env = gym.make('Pendulum-v1', render_mode="human")
+env = gym.make("Pendulum-v1", render_mode="human")
 
 
-def env_info_details():
+def env_info_details() -> None:
     #####################
     # observation space #
     #####################
@@ -37,10 +37,12 @@ def env_info_details():
     action = env.action_space.sample()
     next_observation, reward, terminated, truncated, info = env.step(action)
 
-    print("Obs.: {0}, Action: {1}, Next Obs.: {2}, Reward: {3:6.2f}, "
-          "Terminated: {4}, Truncated: {5}, Info: {6}".format(
-        observation, action, next_observation, reward, terminated, truncated, info
-    ))
+    print(
+        "Obs.: {0}, Action: {1}, Next Obs.: {2}, Reward: {3:6.2f}, "
+        "Terminated: {4}, Truncated: {5}, Info: {6}".format(
+            observation, action, next_observation, reward, terminated, truncated, info
+        )
+    )
 
     observation = next_observation
 
@@ -49,10 +51,12 @@ def env_info_details():
     action = env.action_space.sample()
     next_observation, reward, terminated, truncated, info = env.step(action)
 
-    print("Obs.: {0}, Action: {1}, Next Obs.: {2}, Reward: {3:6.2f}, "
-          "Terminated: {4}, Truncated: {5}, Info: {6}".format(
-        observation, action, next_observation, reward, terminated, truncated, info
-    ))
+    print(
+        "Obs.: {0}, Action: {1}, Next Obs.: {2}, Reward: {3:6.2f}, "
+        "Terminated: {4}, Truncated: {5}, Info: {6}".format(
+            observation, action, next_observation, reward, terminated, truncated, info
+        )
+    )
 
     print("*" * 80)
     time.sleep(2)

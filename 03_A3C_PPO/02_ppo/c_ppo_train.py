@@ -10,13 +10,11 @@ import numpy as np
 import torch
 import torch.multiprocessing as mp
 import torch.nn.functional as F
-import wandb
+from b_actor_and_critic import MODEL_DIR, Actor, Buffer, Critic, Transition
 from torch.distributions import Normal
 from torch.optim import Adam
 
-
-from b_actor_and_critic import MODEL_DIR, Actor, Critic, Transition, Buffer
-from a_shared_adam import SharedAdam
+import wandb
 
 
 def master_loop(global_actor, shared_stat, run_wandb, lock, config):
@@ -24,9 +22,7 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
     test_env = gym.make(env_name)
 
     class PPOMaster:
-        def __init__(
-                self, global_actor, shared_stat, run_wandb, test_env, lock, config
-        ):
+        def __init__(self, global_actor, shared_stat, run_wandb, test_env, lock, config):
             self.env_name = config["env_name"]
             self.is_terminated = False
 
@@ -41,7 +37,7 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
             self.validation_num_episodes = config["validation_num_episodes"]
             self.episode_reward_avg_solved = config["episode_reward_avg_solved"]
 
-            self.current_time = datetime.now().astimezone().strftime('%Y-%m-%d_%H-%M-%S')
+            self.current_time = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S")
 
             self.last_episode_wandb_log = 0
 
@@ -51,23 +47,27 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
             while True:
                 validation_conditions = [
                     self.shared_stat.global_episodes.value != 0,
-                    0 == self.shared_stat.global_episodes.value % self.train_num_episodes_before_next_validation
+                    self.shared_stat.global_episodes.value % self.train_num_episodes_before_next_validation == 0,
                 ]
                 if all(validation_conditions):
                     self.lock.acquire()
                     validation_episode_reward_lst, validation_episode_reward_avg = self.validate()
 
                     total_training_time = time.time() - total_train_start_time
-                    total_training_time = time.strftime('%H:%M:%S', time.gmtime(total_training_time))
+                    total_training_time = time.strftime("%H:%M:%S", time.gmtime(total_training_time))
 
-                    print("[Validation Episode Reward: {0}] Average: {1:.3f}, Elapsed Time: {2}".format(
-                        validation_episode_reward_lst, validation_episode_reward_avg, total_training_time
-                    ))
+                    print(
+                        "[Validation Episode Reward: {0}] Average: {1:.3f}, Elapsed Time: {2}".format(
+                            validation_episode_reward_lst, validation_episode_reward_avg, total_training_time
+                        )
+                    )
 
                     if validation_episode_reward_avg > self.episode_reward_avg_solved:
-                        print("Solved in {0:,} steps ({1:,} training steps)!".format(
-                            self.shared_stat.global_time_steps.value, self.shared_stat.global_training_time_steps.value
-                        ))
+                        print(
+                            "Solved in {0:,} steps ({1:,} training steps)!".format(
+                                self.shared_stat.global_time_steps.value, self.shared_stat.global_training_time_steps.value
+                            )
+                        )
                         self.model_save(validation_episode_reward_avg)
                         self.shared_stat.is_terminated.value = 1  # break
 
@@ -76,7 +76,7 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
                 wandb_log_conditions = [
                     self.run_wandb,
                     self.shared_stat.global_episodes.value > self.last_episode_wandb_log,
-                    self.shared_stat.global_episodes.value > self.train_num_episodes_before_next_validation
+                    self.shared_stat.global_episodes.value > self.train_num_episodes_before_next_validation,
                 ]
                 if all(wandb_log_conditions):
                     self.log_wandb(validation_episode_reward_avg)
@@ -108,29 +108,28 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
             return episode_rewards, np.average(episode_rewards)
 
         def log_wandb(self, validation_episode_reward_avg):
-            self.run_wandb.log({
-                "[VALIDATION] Mean Episode Reward ({0} Episodes)".format(
-                    self.validation_num_episodes
-                ): validation_episode_reward_avg,
-                "[TRAIN] Episode Reward": self.shared_stat.last_episode_reward.value,
-                "[TRAIN] Policy Loss": self.shared_stat.last_policy_loss.value,
-                "[TRAIN] Critic Loss": self.shared_stat.last_critic_loss.value,
-                "[TRAIN] avg_mu_v": self.shared_stat.last_avg_mu_v.value,
-                "[TRAIN] avg_std_v": self.shared_stat.last_avg_std_v.value,
-                "[TRAIN] avg_action": self.shared_stat.last_avg_action.value,
-                "Training Episode": self.shared_stat.global_episodes.value,
-                "Training Steps": self.shared_stat.global_training_time_steps.value,
-            })
+            self.run_wandb.log(
+                {
+                    "[VALIDATION] Mean Episode Reward ({0} Episodes)".format(
+                        self.validation_num_episodes
+                    ): validation_episode_reward_avg,
+                    "[TRAIN] Episode Reward": self.shared_stat.last_episode_reward.value,
+                    "[TRAIN] Policy Loss": self.shared_stat.last_policy_loss.value,
+                    "[TRAIN] Critic Loss": self.shared_stat.last_critic_loss.value,
+                    "[TRAIN] avg_mu_v": self.shared_stat.last_avg_mu_v.value,
+                    "[TRAIN] avg_std_v": self.shared_stat.last_avg_std_v.value,
+                    "[TRAIN] avg_action": self.shared_stat.last_avg_action.value,
+                    "Training Episode": self.shared_stat.global_episodes.value,
+                    "Training Steps": self.shared_stat.global_training_time_steps.value,
+                }
+            )
 
         def model_save(self, validation_episode_reward_avg):
-            filename = "ppo_{0}_{1:4.1f}_{2}.pth".format(
-                self.env_name, validation_episode_reward_avg, self.current_time
-            )
+            filename = "ppo_{0}_{1:4.1f}_{2}.pth".format(self.env_name, validation_episode_reward_avg, self.current_time)
             torch.save(self.global_actor.state_dict(), os.path.join(MODEL_DIR, filename))
 
             copyfile(
-                src=os.path.join(MODEL_DIR, filename),
-                dst=os.path.join(MODEL_DIR, "ppo_{0}_latest.pth".format(self.env_name))
+                src=os.path.join(MODEL_DIR, filename), dst=os.path.join(MODEL_DIR, "ppo_{0}_latest.pth".format(self.env_name))
             )
 
     master = PPOMaster(
@@ -145,16 +144,12 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
     master.validate_loop()
 
 
-def worker_loop(
-        process_id, global_actor, global_critic, shared_stat, lock, config
-):
+def worker_loop(process_id, global_actor, global_critic, shared_stat, lock, config):
     env_name = config["env_name"]
     env = gym.make(env_name)
 
     class PPOAgent:
-        def __init__(
-                self, worker_id, global_actor, global_critic, shared_stat, env, lock, config
-        ):
+        def __init__(self, worker_id, global_actor, global_critic, shared_stat, env, lock, config):
             self.worker_id = worker_id
             self.env_name = config["env_name"]
             self.env = env
@@ -190,8 +185,7 @@ def worker_loop(
             self.time_steps = 0
             self.training_time_steps = 0
 
-            self.current_time = datetime.now().astimezone().strftime('%Y-%m-%d_%H-%M-%S')
-
+            self.current_time = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S")
 
         def train_loop(self):
             policy_loss = critic_loss = 0.0
@@ -233,13 +227,11 @@ def worker_loop(
 
                 if n_episode % self.print_episode_interval == 0:
                     print(
-                        "[Worker: {:2}, Episode {:3,}, Steps {:6,}]".format(
-                            self.worker_id, n_episode, self.time_steps
-                        ),
+                        "[Worker: {:2}, Episode {:3,}, Steps {:6,}]".format(self.worker_id, n_episode, self.time_steps),
                         "Episode Reward: {:>9.3f},".format(episode_reward),
                         "Police Loss: {:>7.3f},".format(policy_loss),
                         "Critic Loss: {:>7.3f},".format(critic_loss),
-                        "Training Steps: {:5,},".format(self.training_time_steps)
+                        "Training Steps: {:5,},".format(self.training_time_steps),
                     )
 
                 if bool(self.shared_stat.is_terminated.value):
@@ -287,9 +279,9 @@ def worker_loop(
                 ratio = torch.exp(action_log_probs - old_action_log_probs.detach())
 
                 ratio_advantages = ratio * advantages.detach()
-                clipped_ratio_advantages = torch.clamp(
-                    ratio, 1 - self.ppo_clip_coefficient, 1 + self.ppo_clip_coefficient
-                ) * advantages.detach()
+                clipped_ratio_advantages = (
+                    torch.clamp(ratio, 1 - self.ppo_clip_coefficient, 1 + self.ppo_clip_coefficient) * advantages.detach()
+                )
                 ratio_advantages_sum = torch.min(ratio_advantages, clipped_ratio_advantages).sum()
 
                 entropy = dist.entropy().squeeze(dim=-1)
@@ -297,7 +289,7 @@ def worker_loop(
 
                 actor_loss = -1.0 * ratio_advantages_sum - 1.0 * entropy_sum * self.entropy_beta
 
-                #Actor Update
+                # Actor Update
                 self.local_actor_optimizer.zero_grad()
                 actor_loss.backward()
                 self.local_actor_optimizer.step()
@@ -331,20 +323,20 @@ def worker_loop(
 
 class SharedInfo:
     def __init__(self):
-        self.global_episodes = mp.Value('I', 0)  # I: unsigned int
-        self.global_time_steps = mp.Value('I', 0)  # I: unsigned int
-        self.global_training_time_steps = mp.Value('I', 0)  # I: unsigned int
+        self.global_episodes = mp.Value("I", 0)  # I: unsigned int
+        self.global_time_steps = mp.Value("I", 0)  # I: unsigned int
+        self.global_training_time_steps = mp.Value("I", 0)  # I: unsigned int
 
         self.train_result_lock = mp.Lock()
-        self.last_episode_reward = mp.Value('d', 0.0)  # d: double
-        self.last_policy_loss = mp.Value('d', 0.0)  # d: double
-        self.last_critic_loss = mp.Value('d', 0.0)  # d: double
-        self.last_avg_mu_v = mp.Value('d', 0.0)  # d: double
-        self.last_avg_std_v = mp.Value('d', 0.0)  # d: double
-        self.last_avg_action = mp.Value('d', 0.0)  # d: double
-        self.last_avg_action_prob = mp.Value('d', 0.0)  # d: double
+        self.last_episode_reward = mp.Value("d", 0.0)  # d: double
+        self.last_policy_loss = mp.Value("d", 0.0)  # d: double
+        self.last_critic_loss = mp.Value("d", 0.0)  # d: double
+        self.last_avg_mu_v = mp.Value("d", 0.0)  # d: double
+        self.last_avg_std_v = mp.Value("d", 0.0)  # d: double
+        self.last_avg_action = mp.Value("d", 0.0)  # d: double
+        self.last_avg_action_prob = mp.Value("d", 0.0)  # d: double
 
-        self.is_terminated = mp.Value('I', 0)  # I: unsigned int --> bool
+        self.is_terminated = mp.Value("I", 0)  # I: unsigned int --> bool
 
 
 class PPO:
@@ -361,12 +353,8 @@ class PPO:
         self.shared_stat = SharedInfo()
 
         if use_wandb:
-            current_time = datetime.now().astimezone().strftime('%Y-%m-%d_%H-%M-%S')
-            self.run_wandb = wandb.init(
-                project="PPO_{0}".format(config["env_name"]),
-                name=current_time,
-                config=config
-            )
+            current_time = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S")
+            self.run_wandb = wandb.init(project="PPO_{0}".format(config["env_name"]), name=current_time, config=config)
         else:
             self.run_wandb = None
 
@@ -376,19 +364,14 @@ class PPO:
     def train_loop(self):
         for i in range(self.num_workers):
             worker_process = mp.Process(
-                target=worker_loop,
-                args=(
-                    i, self.global_actor, self.global_critic,
-                    self.shared_stat, self.lock, self.config
-                )
+                target=worker_loop, args=(i, self.global_actor, self.global_critic, self.shared_stat, self.lock, self.config)
             )
             worker_process.start()
             print(">>> Worker Process: {0} Started!".format(worker_process.pid))
             self.worker_processes.append(worker_process)
 
         master_process = mp.Process(
-            target=master_loop,
-            args=(self.global_actor, self.shared_stat, self.run_wandb, self.lock, self.config)
+            target=master_loop, args=(self.global_actor, self.shared_stat, self.run_wandb, self.lock, self.config)
         )
         master_process.start()
         print(">>> Master Process: {0} Started!".format(master_process.pid))
@@ -411,19 +394,19 @@ def main():
     ENV_NAME = "Pendulum-v1"
 
     config = {
-        "env_name": ENV_NAME,                               # 환경의 이름
-        "num_workers": 4,                                   # 동시 수행 Worker Process 수
-        "max_num_episodes": 200_000,                        # 훈련을 위한 최대 에피소드 횟수
-        "ppo_epochs": 10,                                   # PPO 내부 업데이트 횟수
-        "ppo_clip_coefficient": 0.2,                        # PPO Ratio Clip Coefficient
-        "batch_size": 256,                                  # 훈련시 배치에서 한번에 가져오는 랜덤 배치 사이즈
-        "learning_rate": 0.0003,                            # 학습율
-        "gamma": 0.99,                                      # 감가율
-        "entropy_beta": 0.03,                               # 엔트로피 가중치
-        "print_episode_interval": 20,                       # Episode 통계 출력에 관한 에피소드 간격
-        "train_num_episodes_before_next_validation": 100,   # 검증 사이 마다 각 훈련 episode 간격
-        "validation_num_episodes": 3,                       # 검증에 수행하는 에피소드 횟수
-        "episode_reward_avg_solved": -150                   # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
+        "env_name": ENV_NAME,  # 환경의 이름
+        "num_workers": 4,  # 동시 수행 Worker Process 수
+        "max_num_episodes": 200_000,  # 훈련을 위한 최대 에피소드 횟수
+        "ppo_epochs": 10,  # PPO 내부 업데이트 횟수
+        "ppo_clip_coefficient": 0.2,  # PPO Ratio Clip Coefficient
+        "batch_size": 256,  # 훈련시 배치에서 한번에 가져오는 랜덤 배치 사이즈
+        "learning_rate": 0.0003,  # 학습율
+        "gamma": 0.99,  # 감가율
+        "entropy_beta": 0.03,  # 엔트로피 가중치
+        "print_episode_interval": 20,  # Episode 통계 출력에 관한 에피소드 간격
+        "train_num_episodes_before_next_validation": 100,  # 검증 사이 마다 각 훈련 episode 간격
+        "validation_num_episodes": 3,  # 검증에 수행하는 에피소드 횟수
+        "episode_reward_avg_solved": -150,  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
     }
 
     use_wandb = True
@@ -431,5 +414,5 @@ def main():
     ppo.train_loop()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

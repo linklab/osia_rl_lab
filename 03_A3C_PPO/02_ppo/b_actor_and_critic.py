@@ -16,8 +16,8 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class Actor(nn.Module):
-    def __init__(self, n_features=3, n_actions=1):
-        super(Actor, self).__init__()
+    def __init__(self, n_features: int = 3, n_actions: int = 1):
+        super().__init__()
         self.fc1 = nn.Linear(n_features, 128)
         self.fc2 = nn.Linear(128, 128)
         self.mu = nn.Linear(128, n_actions)
@@ -28,7 +28,7 @@ class Actor(nn.Module):
         self.register_parameter("log_std", log_std_param)
         self.to(DEVICE)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         if isinstance(x, np.ndarray):
             x = torch.tensor(x, dtype=torch.float32, device=DEVICE)
         x = F.relu(self.fc1(x))
@@ -40,7 +40,7 @@ class Actor(nn.Module):
 
         return mu_v, std_v
 
-    def get_action(self, x, exploration=True):
+    def get_action(self, x: torch.Tensor, exploration: bool = True) -> np.ndarray:
         mu_v, std_v = self.forward(x)
 
         if exploration:
@@ -54,18 +54,18 @@ class Actor(nn.Module):
 
 
 class Critic(nn.Module):
-    '''
-       Value network V(s_t) = E[G_t | s_t] to use as a baseline in the reinforce
-       update. This a Neural Net with 1 hidden layer
-    '''
+    """
+    Value network V(s_t) = E[G_t | s_t] to use as a baseline in the reinforce
+    update. This a Neural Net with 1 hidden layer
+    """
 
-    def __init__(self, n_features=3):
-        super(Critic, self).__init__()
+    def __init__(self, n_features: int = 3):
+        super().__init__()
         self.fc1 = nn.Linear(n_features, 128)
         self.fc2 = nn.Linear(128, 128)
         self.fc3 = nn.Linear(128, 1)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         if isinstance(x, np.ndarray):
             x = torch.tensor(x, dtype=torch.float32, device=DEVICE)
         x = F.relu(self.fc1(x))
@@ -75,8 +75,7 @@ class Critic(nn.Module):
 
 
 Transition = collections.namedtuple(
-    typename='Transition',
-    field_names=['observation', 'action', 'next_observation', 'reward', 'done']
+    typename="Transition", field_names=["observation", "action", "next_observation", "reward", "done"]
 )
 
 
@@ -84,19 +83,19 @@ class Buffer:
     def __init__(self):
         self.buffer = collections.deque()
 
-    def size(self):
+    def size(self) -> int:
         return len(self.buffer)
 
     def append(self, transition: Transition) -> None:
         self.buffer.append(transition)
 
-    def pop(self):
+    def pop(self) -> Transition:
         return self.buffer.pop()
 
-    def clear(self):
+    def clear(self) -> None:
         self.buffer.clear()
 
-    def get(self):
+    def get(self) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         # Sample
         observations, actions, next_observations, rewards, dones = zip(*self.buffer)
 

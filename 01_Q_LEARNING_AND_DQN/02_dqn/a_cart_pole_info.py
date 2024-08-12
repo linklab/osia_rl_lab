@@ -1,14 +1,16 @@
 # https://gymnasium.farama.org/environments/classic_control/cart_pole/
 import time
 
-import gymnasium as gym; print("gym.__version__:", gym.__version__)
+import gymnasium as gym
 
-env = gym.make('CartPole-v1', render_mode="human")
+print("gym.__version__:", gym.__version__)
+
+env = gym.make("CartPole-v1", render_mode="human")
 
 ACTION_STRING_LIST = [" LEFT", "RIGHT"]
 
 
-def env_info_details():
+def env_info_details() -> None:
     #####################
     # observation space #
     #####################
@@ -44,11 +46,12 @@ def env_info_details():
     action = 1  # RIGHT
     next_observation, reward, terminated, truncated, info = env.step(action)
 
-    print("Obs.: {0}, Action: {1}({2}), Next Obs.: {3}, Reward: {4}, "
-          "Terminated: {5}, Truncated: {6}, Info: {7}".format(
-        observation, action, ACTION_STRING_LIST[action], next_observation, reward,
-        terminated, truncated, info
-    ))
+    print(
+        "Obs.: {0}, Action: {1}({2}), Next Obs.: {3}, Reward: {4}, "
+        "Terminated: {5}, Truncated: {6}, Info: {7}".format(
+            observation, action, ACTION_STRING_LIST[action], next_observation, reward, terminated, truncated, info
+        )
+    )
 
     observation = next_observation
 
@@ -57,11 +60,12 @@ def env_info_details():
     action = 1  # RIGHT
     next_observation, reward, terminated, truncated, info = env.step(action)
 
-    print("Obs.: {0}, Action: {1}({2}), Next Obs.: {3}, Reward: {4}, "
-          "Terminated: {5}, Truncated: {6}, Info: {7}".format(
-        observation, action, ACTION_STRING_LIST[action], next_observation, reward,
-        terminated, truncated, info
-    ))
+    print(
+        "Obs.: {0}, Action: {1}({2}), Next Obs.: {3}, Reward: {4}, "
+        "Terminated: {5}, Truncated: {6}, Info: {7}".format(
+            observation, action, ACTION_STRING_LIST[action], next_observation, reward, terminated, truncated, info
+        )
+    )
 
     print("*" * 80)
     time.sleep(2)

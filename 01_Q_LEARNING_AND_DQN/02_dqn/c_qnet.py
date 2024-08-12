@@ -16,8 +16,8 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class QNet(nn.Module):
-    def __init__(self, n_features=4, n_actions=2):
-        super(QNet, self).__init__()
+    def __init__(self, n_features: int = 4, n_actions: int = 2):
+        super().__init__()
         self.n_features = n_features
         self.n_actions = n_actions
         self.fc1 = nn.Linear(n_features, 128)  # fully connected
@@ -25,7 +25,7 @@ class QNet(nn.Module):
         self.fc3 = nn.Linear(128, n_actions)
         self.to(DEVICE)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         if isinstance(x, np.ndarray):
             x = torch.tensor(x, dtype=torch.float32, device=DEVICE)
         x = F.relu(self.fc1(x))
@@ -33,7 +33,7 @@ class QNet(nn.Module):
         x = self.fc3(x)
         return x
 
-    def get_action(self, obs, epsilon=0.1):
+    def get_action(self, obs: torch.Tensor, epsilon: float = 0.1) -> int:
         # random.random(): 0.0과 1.0사이의 임의의 값을 반환
         if random.random() < epsilon:
             action = random.randrange(0, self.n_actions)
@@ -45,28 +45,27 @@ class QNet(nn.Module):
 
 
 Transition = collections.namedtuple(
-    typename='Transition',
-    field_names=['observation', 'action', 'next_observation', 'reward', 'done']
+    typename="Transition", field_names=["observation", "action", "next_observation", "reward", "done"]
 )
 
 
 class ReplayBuffer:
-    def __init__(self, capacity):
+    def __init__(self, capacity: int):
         self.buffer = collections.deque(maxlen=capacity)
 
-    def size(self):
+    def size(self) -> int:
         return len(self.buffer)
 
     def append(self, transition: Transition) -> None:
         self.buffer.append(transition)
 
-    def pop(self):
+    def pop(self) -> Transition:
         return self.buffer.pop()
 
-    def clear(self):
+    def clear(self) -> None:
         self.buffer.clear()
 
-    def sample(self, batch_size):
+    def sample(self, batch_size: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         # Get random index
         indices = np.random.choice(len(self.buffer), size=batch_size, replace=False)
         # Sample
