@@ -1,15 +1,16 @@
 # https://gymnasium.farama.org/environments/classic_control/cart_pole/
-import time
 import os
+import time
+from datetime import datetime
+from shutil import copyfile
+
 import gymnasium as gym
 import numpy as np
 import torch
-import torch.optim as optim
 import torch.nn.functional as F
-from torch.distributions import Normal
+import torch.optim as optim
 import wandb
-from datetime import datetime
-from shutil import copyfile
+from torch.distributions import Normal
 
 from c_policy_and_value import DEVICE, MODEL_DIR, Policy, Transition, Buffer, StateValueNet
 

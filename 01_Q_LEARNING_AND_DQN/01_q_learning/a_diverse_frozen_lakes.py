@@ -1,9 +1,8 @@
 # https://gymnasium.farama.org/environments/toy_text/frozen_lake/
 # pip install gymnasium[toy-text]
-import gymnasium as gym; print(f"gym.__version__: {gym.__version__}")
 import time
-from warnings import filterwarnings
-filterwarnings(action='ignore', category=DeprecationWarning)
+
+import gymnasium as gym; print(f"gym.__version__: {gym.__version__}")
 
 env = gym.make('FrozenLake-v1', desc=None, map_name="4x4", is_slippery=False, render_mode="human")
 

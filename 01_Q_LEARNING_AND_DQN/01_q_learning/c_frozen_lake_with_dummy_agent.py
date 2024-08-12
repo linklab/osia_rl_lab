@@ -1,8 +1,7 @@
-import gymnasium as gym; print(f"gym.__version__: {gym.__version__}")
 import random
 import time
-from warnings import filterwarnings
-filterwarnings(action='ignore', category=DeprecationWarning)
+
+import gymnasium as gym; print(f"gym.__version__: {gym.__version__}")
 
 env = gym.make('FrozenLake-v1', desc=None, map_name="4x4", is_slippery=False, render_mode="human")
 ACTION_STRING_LIST = [" LEFT", " DOWN", "RIGHT", "   UP"]

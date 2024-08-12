@@ -1,11 +1,9 @@
-import os
-import gymnasium as gym; print(f"gym.__version__: {gym.__version__}")
-import numpy as np
-import matplotlib.pyplot as plt
 import random
 import time
-from warnings import filterwarnings
-filterwarnings(action='ignore', category=DeprecationWarning)
+
+import matplotlib.pyplot as plt
+import numpy as np
+import gymnasium as gym; print(f"gym.__version__: {gym.__version__}")
 
 
 np.set_printoptions(precision=3)

@@ -1,8 +1,7 @@
 # https://gymnasium.farama.org/environments/toy_text/frozen_lake/
-import gymnasium as gym; print(f"gym.__version__: {gym.__version__}")
 import time
-from warnings import filterwarnings
-filterwarnings(action='ignore', category=DeprecationWarning)
+
+import gymnasium as gym; print(f"gym.__version__: {gym.__version__}")
 
 
 ACTION_STRING_LIST = [" LEFT", " DOWN", "RIGHT", "   UP"]

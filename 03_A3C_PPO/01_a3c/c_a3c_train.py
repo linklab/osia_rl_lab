@@ -1,20 +1,20 @@
 # https://gymnasium.farama.org/environments/classic_control/pendulum/
-import time
-import os
-import torch.multiprocessing as mp
 import copy
+import os
+import time
+from datetime import datetime
+from shutil import copyfile
 
 import gymnasium as gym
 import numpy as np
 import torch
+import wandb
+import torch.multiprocessing as mp
 import torch.nn.functional as F
 from torch.distributions import Normal
-import wandb
-from datetime import datetime
-from shutil import copyfile
 
-from b_actor_and_critic import MODEL_DIR, Actor, Critic, Transition, Buffer
 from a_shared_adam import SharedAdam
+from b_actor_and_critic import MODEL_DIR, Actor, Critic, Transition, Buffer
 
 
 def master_loop(global_actor, shared_stat, run_wandb, lock, config):
@@ -239,7 +239,7 @@ def worker_loop(
                     )
 
                 if bool(self.shared_stat.is_terminated.value):
-                    break;
+                    break
 
         def train(self):
             self.training_time_steps += 1

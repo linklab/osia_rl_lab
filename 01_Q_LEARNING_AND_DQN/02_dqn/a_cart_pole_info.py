@@ -1,6 +1,7 @@
 # https://gymnasium.farama.org/environments/classic_control/cart_pole/
-import gymnasium as gym; print("gym.__version__:", gym.__version__)
 import time
+
+import gymnasium as gym; print("gym.__version__:", gym.__version__)
 
 env = gym.make('CartPole-v1', render_mode="human")
 

@@ -1,10 +1,11 @@
+import collections
 import os
 import random
-from torch import nn
-import torch.nn.functional as F
-import collections
-import torch
+
 import numpy as np
+import torch
+import torch.nn.functional as F
+from torch import nn
 
 CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
 MODEL_DIR = os.path.join(CURRENT_PATH, "models")

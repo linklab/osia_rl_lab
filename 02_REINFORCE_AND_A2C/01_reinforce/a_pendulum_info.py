@@ -1,6 +1,7 @@
 # https://gymnasium.farama.org/environments/classic_control/pendulum
-import gymnasium as gym
 import time
+
+import gymnasium as gym
 import numpy as np
 
 print("gym.__version__:", gym.__version__)
