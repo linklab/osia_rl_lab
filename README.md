@@ -1,8 +1,14 @@
-# conda env
-- conda create -n osia_rl_lab python=3.12
+# OSIA RL Lab
 
-# kics_rl
-- https://github.com/linklab/osia_rl_lab
+## Getting Started
 
-# Install dependencies
-- pip install -r requirements.txt
+```bash
+git clone https://github.com/linklab/osia_rl_lab.git
+cd osia_rl_lab
+conda create -n osia_rl_lab python=3.12 -y
+conda activate osia_rl_lab
+pip install -r requirements.txt
+```
+
+and install PyTorch from
+<https://pytorch.org/get-started/locally/>
