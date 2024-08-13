@@ -60,7 +60,6 @@ class DQN:
             hidden_size=512,
             is_single_value_data=False,
             is_GRU=True,
-            decoder_input_always_zero=False,
         )
         self.target_q = PointerNetwork(
             embed_input_size=n_features,
@@ -70,7 +69,6 @@ class DQN:
             hidden_size=512,
             is_single_value_data=False,
             is_GRU=True,
-            decoder_input_always_zero=False,
         )
         self.target_q.load_state_dict(self.q.state_dict())
 
@@ -104,10 +102,9 @@ class DQN:
             episode_reward = 0
 
             observation, info = self.env.reset()
-            output = self.q(observation)
-            print("output.shape:", output.shape)
-            exit()
+            self.q.setup(obs=observation)
 
+            action = None
             done = False
             terminated = False
 
@@ -116,8 +113,8 @@ class DQN:
                 self.total_time_steps += 1
 
                 action = self.q.get_action(
-                    obs=observation,
-                    available_actions=info["available_actions"],
+                    action=action,
+                    action_mask=info["action_mask"],
                     epsilon=epsilon,
                 )
 
@@ -197,7 +194,7 @@ class DQN:
         observations, actions, next_observations, rewards, dones = batch
 
         # state_action_values.shape: torch.Size([32, 1])
-        q_out = self.q(observations)
+        q_out = self.q(observations)  # TODO: Fix this
         q_values = q_out.gather(dim=-1, index=actions)
 
         with torch.no_grad():

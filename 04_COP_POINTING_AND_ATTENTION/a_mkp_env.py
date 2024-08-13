@@ -119,6 +119,18 @@ class MKPState:
         self._available_items = np.where(self._values > 0)[0]
         return self._available_items
 
+    def get_action_mask(self) -> np.ndarray:
+        """
+        Returns:
+            np.ndarray: An array containing the action mask.
+            0: Available action
+            1: Unavailable action
+        """
+        action_mask = np.ones(self._values.shape, dtype=bool)
+        available_items = self.get_available_items()
+        action_mask[available_items] = False
+        return action_mask
+
 
 class MultiDimKnapsack(gym.Env):
     _inintial_state: MKPState
@@ -210,12 +222,16 @@ class MultiDimKnapsack(gym.Env):
             # Validate available items
             self._curr_state.validate_available_items()
             available_actions = self._curr_state.get_available_items()
+            action_mask = self._curr_state.get_action_mask()
 
             reset_complete = len(available_actions) > 0
             if not reset_complete and state is not None:
                 raise ValueError(f"No available items in the initial state: {state}")
 
-        return self._curr_state.get_observation(), {"available_actions": available_actions}
+            obs = self._curr_state.get_observation()
+            info = {"available_actions": available_actions, "action_mask": action_mask}
+
+        return obs, info
 
     def step(
         self,
@@ -236,12 +252,14 @@ class MultiDimKnapsack(gym.Env):
 
         # Available actions
         available_actions = self._curr_state.get_available_items()
+        action_mask = self._curr_state.get_action_mask()
+        info = {"available_actions": available_actions, "action_mask": action_mask}
 
         # Done
         terminated = np.all(self._curr_state.values == 0)
         truncated = False
 
-        return obs, reward, terminated, truncated, {"available_actions": available_actions}
+        return obs, reward, terminated, truncated, info
 
     def get_log(self) -> dict[str, Any]:
         return {
