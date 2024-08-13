@@ -83,8 +83,9 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
                     self.last_episode_wandb_log = self.shared_stat.global_episodes.value
 
                 if bool(self.shared_stat.is_terminated.value):
-                    for _ in range(5):
-                        self.log_wandb(validation_episode_reward_avg)
+                    if self.run_wandb:
+                        for _ in range(5):
+                            self.log_wandb(validation_episode_reward_avg)
                     break
 
         def validate(self) -> tuple[np.ndarray, float]:

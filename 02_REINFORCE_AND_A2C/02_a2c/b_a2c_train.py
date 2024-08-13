@@ -25,8 +25,10 @@ class A2C:
 
         self.current_time = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S")
 
-        if self.use_wandb:
-            self.wandb = wandb.init(project="A2C_{0}".format(self.env_name), name=self.current_time, config=config)
+        if use_wandb:
+            self.run_wandb = wandb.init(project="A2C_{0}".format(self.env_name), name=self.current_time, config=config)
+        else:
+            self.run_wandb = None
 
         self.max_num_episodes = config["max_num_episodes"]
         self.batch_size = config["batch_size"]
@@ -123,23 +125,24 @@ class A2C:
                 )
 
             if is_terminated:
-                for _ in range(5):
-                    self.log_wandb(
-                        validation_episode_reward_avg,
-                        episode_reward,
-                        policy_loss,
-                        critic_loss,
-                        avg_mu_v,
-                        avg_std_v,
-                        avg_action,
-                        n_episode,
-                    )
+                if self.run_wandb:
+                    for _ in range(5):
+                        self.log_wandb(
+                            validation_episode_reward_avg,
+                            episode_reward,
+                            policy_loss,
+                            critic_loss,
+                            avg_mu_v,
+                            avg_std_v,
+                            avg_action,
+                            n_episode,
+                        )
                 break
 
         total_training_time = time.time() - total_train_start_time
         total_training_time = time.strftime("%H:%M:%S", time.gmtime(total_training_time))
         print("Total Training End : {}".format(total_training_time))
-        self.wandb.finish()
+        self.run_wandb.finish()
 
     def log_wandb(
         self,
@@ -152,7 +155,7 @@ class A2C:
         avg_action: float,
         n_episode: float,
     ) -> None:
-        self.wandb.log(
+        self.run_wandb.log(
             {
                 "[VALIDATION] Mean Episode Reward ({0} Episodes)".format(
                     self.validation_num_episodes

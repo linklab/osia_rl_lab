@@ -11,7 +11,7 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn.functional as F
 from b_actor_and_critic import MODEL_DIR, Actor, Buffer, Critic, Transition
-from torch.distributions import Normal, Categorical
+from torch.distributions import Categorical
 from torch.optim import Adam
 
 import wandb
@@ -53,6 +53,7 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
                 ]
                 if all(validation_conditions):
                     self.last_global_episode_for_validation = self.shared_stat.global_episodes.value
+
                     self.lock.acquire()
                     validation_episode_reward_lst, validation_episode_reward_avg = self.validate()
 
@@ -82,12 +83,13 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
                     self.shared_stat.global_episodes.value > self.train_num_episodes_before_next_validation,
                 ]
                 if all(wandb_log_conditions):
-                    self.log_wandb(validation_global_episode_reward_avg)
+                    self.log_wandb(validation_episode_reward_avg)
                     self.last_global_episode_wandb_log = self.shared_stat.global_episodes.value
 
                 if bool(self.shared_stat.is_terminated.value):
-                    for _ in range(5):
-                        self.log_wandb(validation_episode_reward_avg)
+                    if self.run_wandb:
+                        for _ in range(5):
+                            self.log_wandb(validation_episode_reward_avg)
                     break
 
         def validate(self):
@@ -243,6 +245,11 @@ def worker_loop(process_id, global_actor, global_critic, shared_stat, lock, conf
 
             # Getting values from buffer
             observations, actions, next_observations, rewards, dones = self.buffer.get()
+            # observations.shape: [256, 6]
+            # actions.shape: [256, 1]
+            # next_observations.shape: [256, 6]
+            # rewards.shape: [256, 1]
+            # dones.shape: [256]
 
             self.lock.acquire()
             self.local_critic.load_state_dict(self.global_critic.state_dict())
@@ -251,7 +258,10 @@ def worker_loop(process_id, global_actor, global_critic, shared_stat, lock, conf
 
             old_mu = self.local_actor.forward(observations)
             old_dist = Categorical(probs=old_mu)
-            old_action_log_probs = old_dist.log_prob(value=actions).squeeze(dim=-1)
+            old_action_log_probs = old_dist.log_prob(value=actions.squeeze(dim=-1)).squeeze(dim=-1)
+            # actions.shape: [256, 1]
+            # actions.squeeze(dim=-1).shape: [256]
+            # old_action_log_probs.shape: [256]
 
             for epoch in range(self.ppo_epochs):
                 # Calculating target values
@@ -274,7 +284,7 @@ def worker_loop(process_id, global_actor, global_critic, shared_stat, lock, conf
                 # Actor Loss computing
                 mu = self.local_actor.forward(observations)
                 dist = Categorical(probs=mu)
-                action_log_probs = dist.log_prob(value=actions).squeeze(dim=-1)
+                action_log_probs = dist.log_prob(value=actions.squeeze(dim=-1)).squeeze(dim=-1)
 
                 ratio = torch.exp(action_log_probs - old_action_log_probs.detach())
 
@@ -387,19 +397,19 @@ def main():
     ENV_NAME = "Acrobot-v1"
 
     config = {
-        "env_name": ENV_NAME,  # 환경의 이름
-        "num_workers": 1,  # 동시 수행 Worker Process 수
-        "max_num_episodes": 200_000,  # 훈련을 위한 최대 에피소드 횟수
-        "ppo_epochs": 10,  # PPO 내부 업데이트 횟수
-        "ppo_clip_coefficient": 0.2,  # PPO Ratio Clip Coefficient
-        "batch_size": 256,  # 훈련시 배치에서 한번에 가져오는 랜덤 배치 사이즈
-        "learning_rate": 0.0003,  # 학습율
-        "gamma": 0.99,  # 감가율
-        "entropy_beta": 0.03,  # 엔트로피 가중치
-        "print_episode_interval": 20,  # Episode 통계 출력에 관한 에피소드 간격
-        "train_num_episodes_before_next_validation": 100,  # 검증 사이 마다 각 훈련 episode 간격
-        "validation_num_episodes": 3,  # 검증에 수행하는 에피소드 횟수
-        "episode_reward_avg_solved": -150,  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
+        "env_name": ENV_NAME,                               # 환경의 이름
+        "num_workers": 1,                                   # 동시 수행 Worker Process 수
+        "max_num_episodes": 200_000,                        # 훈련을 위한 최대 에피소드 횟수
+        "ppo_epochs": 10,                                   # PPO 내부 업데이트 횟수
+        "ppo_clip_coefficient": 0.2,                        # PPO Ratio Clip Coefficient
+        "batch_size": 256,                                  # 훈련시 배치에서 한번에 가져오는 랜덤 배치 사이즈
+        "learning_rate": 0.0003,                            # 학습율
+        "gamma": 0.99,                                      # 감가율
+        "entropy_beta": 0.03,                               # 엔트로피 가중치
+        "print_episode_interval": 20,                       # Episode 통계 출력에 관한 에피소드 간격
+        "train_num_episodes_before_next_validation": 100,   # 검증 사이 마다 각 훈련 episode 간격
+        "validation_num_episodes": 3,                       # 검증에 수행하는 에피소드 횟수
+        "episode_reward_avg_solved": -75,                   # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
     }
 
     use_wandb = False

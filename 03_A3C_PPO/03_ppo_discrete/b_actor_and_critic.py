@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import nn
-from torch.distributions import Normal, Categorical
+from torch.distributions import Categorical
 
 CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
 MODEL_DIR = os.path.join(CURRENT_PATH, "models")
@@ -39,10 +39,8 @@ class Actor(nn.Module):
             dist = Categorical(probs=mu_v)
             action = dist.sample()
             action = action.detach().numpy()
-            print(mu_v, action, "$$$$ - 0")
         else:
             action = torch.argmax(mu_v).detach().numpy()
-            print(mu_v, action, "$$$$ - 1")
 
         return action
 

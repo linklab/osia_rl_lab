@@ -114,10 +114,11 @@ class REINFORCE:
                 )
 
             if is_terminated:
-                for _ in range(5):
-                    self.log_wandb(
-                        validation_episode_reward_avg, episode_reward, policy_loss, avg_mu_v, avg_std_v, avg_action, n_episode
-                    )
+                if self.run_wandb:
+                    for _ in range(5):
+                        self.log_wandb(
+                            validation_episode_reward_avg, episode_reward, policy_loss, avg_mu_v, avg_std_v, avg_action, n_episode
+                        )
                 break
 
         total_training_time = time.time() - total_train_start_time
