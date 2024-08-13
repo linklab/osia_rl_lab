@@ -10,11 +10,11 @@ import numpy as np
 import torch
 import torch.multiprocessing as mp
 import torch.nn.functional as F
-from b_actor_and_critic import MODEL_DIR, Actor, Buffer, Critic, Transition
+import wandb
 from torch.distributions import Normal
 from torch.optim import Adam
 
-import wandb
+from b_actor_and_critic import MODEL_DIR, Actor, Buffer, Critic, Transition
 
 
 def master_loop(global_actor, shared_stat, run_wandb, lock, config):
@@ -41,7 +41,7 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
 
             self.last_episode_wandb_log = 0
 
-        def validate_loop(self):
+        def validate_loop(self) -> None:
             total_train_start_time = time.time()
 
             while True:
@@ -87,7 +87,7 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
                         self.log_wandb(validation_episode_reward_avg)
                     break
 
-        def validate(self):
+        def validate(self) -> tuple[np.ndarray, float]:
             episode_rewards = np.zeros(self.validation_num_episodes)
 
             for i in range(self.validation_num_episodes):
@@ -107,7 +107,7 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
 
             return episode_rewards, np.average(episode_rewards)
 
-        def log_wandb(self, validation_episode_reward_avg):
+        def log_wandb(self, validation_episode_reward_avg: float) -> None:
             self.run_wandb.log(
                 {
                     "[VALIDATION] Mean Episode Reward ({0} Episodes)".format(
@@ -124,7 +124,7 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
                 }
             )
 
-        def model_save(self, validation_episode_reward_avg):
+        def model_save(self, validation_episode_reward_avg: float) -> None:
             filename = "ppo_{0}_{1:4.1f}_{2}.pth".format(self.env_name, validation_episode_reward_avg, self.current_time)
             torch.save(self.global_actor.state_dict(), os.path.join(MODEL_DIR, filename))
 
@@ -187,7 +187,7 @@ def worker_loop(process_id, global_actor, global_critic, shared_stat, lock, conf
 
             self.current_time = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S")
 
-        def train_loop(self):
+        def train_loop(self) -> None:
             policy_loss = critic_loss = 0.0
 
             for n_episode in range(1, self.max_num_episodes + 1):
@@ -237,7 +237,7 @@ def worker_loop(process_id, global_actor, global_critic, shared_stat, lock, conf
                 if bool(self.shared_stat.is_terminated.value):
                     break
 
-        def train(self):
+        def train(self) -> tuple[float, float, float, float, float]:
             self.training_time_steps += 1
             self.shared_stat.global_training_time_steps.value += 1
 
@@ -339,7 +339,7 @@ class SharedInfo:
 
 
 class PPO:
-    def __init__(self, config, use_wandb):
+    def __init__(self, config: dict, use_wandb: bool):
         self.config = config
         self.use_wandb = use_wandb
         self.num_workers = min(config["num_workers"], mp.cpu_count() - 1)
@@ -360,10 +360,18 @@ class PPO:
         self.worker_processes = []
         self.master_process = None
 
-    def train_loop(self):
+    def train_loop(self) -> None:
         for i in range(self.num_workers):
             worker_process = mp.Process(
-                target=worker_loop, args=(i, self.global_actor, self.global_critic, self.shared_stat, self.lock, self.config)
+                target=worker_loop,
+                args=(
+                    i,
+                    self.global_actor,
+                    self.global_critic,
+                    self.shared_stat,
+                    self.lock,
+                    self.config,
+                ),
             )
             worker_process.start()
             print(">>> Worker Process: {0} Started!".format(worker_process.pid))
@@ -388,7 +396,7 @@ class PPO:
             self.run_wandb.finish()
 
 
-def main():
+def main() -> None:
     print("TORCH VERSION:", torch.__version__)
     ENV_NAME = "Pendulum-v1"
 

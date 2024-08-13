@@ -108,7 +108,7 @@ class DQN:
                     "Replay buffer: {:>6,},".format(self.replay_buffer.size()),
                     "Loss: {:6.3f},".format(loss),
                     "Epsilon: {:4.2f},".format(epsilon),
-                    "Training Steps: {:5,},".format(self.training_time_steps)
+                    "Training Steps: {:5,},".format(self.training_time_steps),
                 )
 
             if n_episode % self.train_num_episodes_before_next_validation == 0:

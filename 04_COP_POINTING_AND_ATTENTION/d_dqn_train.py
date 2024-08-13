@@ -221,7 +221,7 @@ class DQN:
 
         copyfile(
             src=os.path.join(MODEL_DIR, filename),
-            dst=os.path.join(MODEL_DIR, f"dqn_{self.env_name}_{n_items}x{n_resources}_latest.pth")
+            dst=os.path.join(MODEL_DIR, f"dqn_{self.env_name}_{n_items}x{n_resources}_latest.pth"),
         )
 
     def validate(self) -> tuple[np.ndarray, float]:

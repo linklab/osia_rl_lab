@@ -133,7 +133,7 @@ class REINFORCE:
         avg_mu_v: float,
         avg_std_v: float,
         avg_action: float,
-        n_episode: int
+        n_episode: int,
     ) -> None:
         self.wandb.log(
             {
