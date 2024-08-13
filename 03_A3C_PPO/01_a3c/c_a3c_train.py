@@ -64,7 +64,7 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
 
                     if validation_episode_reward_avg > self.episode_reward_avg_solved:
                         print(
-                            "Solved in {0:,} steps ({1:,} training steps)!".format(
+                            "Solved in {0:,} time steps ({1:,} training steps)!".format(
                                 self.shared_stat.global_time_steps.value, self.shared_stat.global_training_time_steps.value
                             )
                         )
@@ -238,7 +238,7 @@ def worker_loop(
 
                 if n_episode % self.print_episode_interval == 0:
                     print(
-                        "[Worker: {:2}, Episode {:3,}, Steps {:6,}]".format(self.worker_id, n_episode, self.time_steps),
+                        "[Worker: {:2}, Episode {:3,}, Time Steps {:6,}]".format(self.worker_id, n_episode, self.time_steps),
                         "Episode Reward: {:>9.3f},".format(episode_reward),
                         "Police Loss: {:>7.3f},".format(policy_loss),
                         "Critic Loss: {:>7.3f},".format(critic_loss),

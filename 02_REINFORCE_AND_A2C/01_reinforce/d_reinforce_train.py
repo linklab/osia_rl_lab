@@ -85,7 +85,7 @@ class REINFORCE:
 
             if n_episode % self.print_episode_interval == 0:
                 print(
-                    "[Episode {:3,}, Steps {:6,}]".format(n_episode, self.time_steps),
+                    "[Episode {:3,}, Time Steps {:6,}]".format(n_episode, self.time_steps),
                     "Episode Reward: {:>9.3f},".format(episode_reward),
                     "Policy Loss: {:>7.3f},".format(policy_loss),
                     "Training Steps: {:5,}".format(self.training_time_steps),
@@ -104,7 +104,7 @@ class REINFORCE:
                 )
 
                 if validation_episode_reward_avg > self.episode_reward_avg_solved:
-                    print("Solved in {0:,} steps ({1:,} training steps)!".format(self.time_steps, self.training_time_steps))
+                    print("Solved in {0:,} time steps ({1:,} training steps)!".format(self.time_steps, self.training_time_steps))
                     self.model_save(validation_episode_reward_avg)
                     is_terminated = True
 

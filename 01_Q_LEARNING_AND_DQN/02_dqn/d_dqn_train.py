@@ -124,7 +124,7 @@ class DQN:
                 )
 
                 if validation_episode_reward_avg > self.episode_reward_avg_solved:
-                    print("Solved in {0:,} steps ({1:,} training steps)!".format(self.time_steps, self.training_time_steps))
+                    print("Solved in {0:,} time steps ({1:,} training steps)!".format(self.time_steps, self.training_time_steps))
                     self.model_save(validation_episode_reward_avg)
                     is_terminated = True
 

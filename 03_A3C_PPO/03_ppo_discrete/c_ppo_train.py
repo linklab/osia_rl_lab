@@ -229,8 +229,8 @@ def worker_loop(process_id, global_actor, global_critic, shared_stat, lock, conf
 
                 if n_episode % self.print_episode_interval == 0:
                     print(
-                        "[Worker: {:2}, Episode {:3,}, Steps {:6,}]".format(self.worker_id, n_episode, self.time_steps),
-                        "Episode Reward: {:>9.3f},".format(episode_reward),
+                        "[Worker: {:2}, Episode {:3,}, Time Steps {:6,}]".format(self.worker_id, n_episode, self.time_steps),
+                        "Episode Reward: {:>6.4f},".format(episode_reward),
                         "Police Loss: {:>7.3f},".format(policy_loss),
                         "Critic Loss: {:>7.3f},".format(critic_loss),
                         "Training Steps: {:5,},".format(self.training_time_steps),

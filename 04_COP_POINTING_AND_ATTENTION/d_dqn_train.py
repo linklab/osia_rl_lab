@@ -27,7 +27,9 @@ class DQN:
         self.current_time = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S")
 
         if self.use_wandb:
-            self.wandb = wandb.init(project="DQN_{0}".format(self.env_name), name=self.current_time, config=config)
+            self.run_wandb = wandb.init(project="DQN_{0}".format(self.env_name), name=self.current_time, config=config)
+        else:
+            self.run_wandb = None
 
         self.max_num_episodes = config["max_num_episodes"]
         self.batch_size = config["batch_size"]
@@ -110,47 +112,37 @@ class DQN:
                 if self.total_time_steps % self.steps_between_train == 0 and self.time_steps > self.batch_size:
                     loss = self.train()
 
-            total_training_time = time.time() - total_train_start_time
-            total_training_time = time.strftime("%H:%M:%S", time.gmtime(total_training_time))
-
             if n_episode % self.print_episode_interval == 0:
                 print(
                     "[Episode {:3,}, Time Steps {:6,}]".format(n_episode, self.time_steps),
-                    "Episode Reward: {:>5},".format(episode_reward),
+                    "Episode Reward: {:>9.3f},".format(episode_reward),
                     "Replay buffer: {:>6,},".format(self.replay_buffer.size()),
                     "Loss: {:6.3f},".format(loss),
                     "Epsilon: {:4.2f},".format(epsilon),
-                    "Training Steps: {:5,},".format(self.training_time_steps),
-                    "Elapsed Time: {}".format(total_training_time),
+                    "Training Steps: {:5,}".format(self.training_time_steps)
                 )
 
             if n_episode % self.train_num_episodes_before_next_validation == 0:
                 validation_episode_reward_lst, validation_episode_reward_avg = self.validate()
 
+                total_training_time = time.time() - total_train_start_time
+                total_training_time = time.strftime("%H:%M:%S", time.gmtime(total_training_time))
+
                 print(
-                    "[Validation Episode Reward: {0}] Average: {1:.3f}".format(
-                        validation_episode_reward_lst, validation_episode_reward_avg
+                    "[Validation Episode Reward: {0}] Average: {1:.3f}, Elapsed Time: {2}".format(
+                        validation_episode_reward_lst, validation_episode_reward_avg, total_training_time
                     )
                 )
 
                 self.model_save(validation_episode_reward_avg)
 
             if self.use_wandb:
-                self.wandb.log(
-                    {
-                        "[VALIDATION] Mean Episode Reward ({0} Episodes)".format(
-                            self.validation_num_episodes
-                        ): validation_episode_reward_avg,
-                        "[TRAIN] Episode Reward": episode_reward,
-                        "[TRAIN] Loss": loss if loss != 0.0 else 0.0,
-                        "[TRAIN] Epsilon": epsilon,
-                        "[TRAIN] Replay buffer": self.replay_buffer.size(),
-                        "Training Episode": n_episode,
-                        "Training Steps": self.training_time_steps,
-                    }
-                )
+                self.log_wandb(validation_episode_reward_avg, episode_reward, loss, epsilon, n_episode)
 
             if is_terminated:
+                if self.run_wandb:
+                    for _ in range(5):
+                        self.log_wandb(validation_episode_reward_avg, episode_reward, loss, epsilon, n_episode)
                 break
 
         total_training_time = time.time() - total_train_start_time
@@ -158,7 +150,22 @@ class DQN:
         print("Total Training End : {}".format(total_training_time))
 
         if self.use_wandb:
-            self.wandb.finish()
+            self.run_wandb.finish()
+
+    def log_wandb(self, validation_episode_reward_avg, episode_reward, loss, epsilon, n_episode):
+        self.run_wandb.log(
+            {
+                "[VALIDATION] Mean Episode Reward ({0} Episodes)".format(
+                    self.validation_num_episodes
+                ): validation_episode_reward_avg,
+                "[TRAIN] Episode Reward": episode_reward,
+                "[TRAIN] Loss": loss if loss != 0.0 else 0.0,
+                "[TRAIN] Epsilon": epsilon,
+                "[TRAIN] Replay buffer": self.replay_buffer.size(),
+                "Training Episode": n_episode,
+                "Training Steps": self.training_time_steps,
+            }
+        )
 
     def train(self) -> float:
         self.training_time_steps += 1
