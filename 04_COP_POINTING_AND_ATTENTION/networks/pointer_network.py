@@ -24,7 +24,6 @@ class PointerNetwork(nn.Module):
         hidden_size: int = 512,
         is_single_value_data: bool = True,
         is_GRU: bool = True,
-        decoder_input_always_zero: bool = True,
     ):
         super().__init__()
 
@@ -33,7 +32,6 @@ class PointerNetwork(nn.Module):
         self.embed_size = embed_size
         self.hidden_size = hidden_size
         self.is_GRU = is_GRU
-        self.decoder_input_always_zero = decoder_input_always_zero
 
         if is_single_value_data:
             self.embed = nn.Embedding(embed_input_size, embed_size)
@@ -66,31 +64,36 @@ class PointerNetwork(nn.Module):
         input_seq_len = input_.size(1)
 
         # 1. Embedding
-        # (batch_dize, seq_len, n_features) * (n_features, embd_size) = (batch_size, seq_len, embd_size)
+        # input_: (batch_size, seq_len, n_features)
         embed = self.embed(input_)
+        # embed: (batch_size, seq_len, embd_size)
 
         # 2. Encoding
+        # embed: (batch_size, seq_len, embd_size)
         decoder_input, encoder_out, encoder_hidden = self.process_encoder_step(embed)
+        # decoder_input: (batch_size, embd_size)
+        # encoder_out: (seq_len, batch_size, hidden_size)
+        # encoder_hidden: (num_layers * num_directions, batch_size, hidden_size)
 
         # 2.1 Initialize mask
-        mask = torch.zeros([batch_size, input_seq_len]).detach()  # (batch_size, seq_len)
+        mask = torch.zeros([batch_size, input_seq_len]).detach()  # mask: (batch_size, seq_len)
 
         # 2.2 Initialize hidden state of decoder
-        decoder_hidden = encoder_hidden[-1]  # (batch_size, hidden_size)
+        decoder_hidden = encoder_hidden[-1]  # decoder_hidden: (batch_size, hidden_size)
         decoder_hidden2 = None
         if not self.is_GRU:
-            decoder_hidden2 = to_var(torch.zeros(batch_size, self.hidden_size))
+            decoder_hidden2 = to_var(torch.zeros(batch_size, self.hidden_size))  # decoder_hidden2: (batch_size, hidden_size)
 
         probs_list = []
         for _ in range(self.answer_seq_len):
             # 3. Decoding
             decoder_input, decoder_hidden, decoder_hidden2, probs = self.process_decoder_step(
-                decoder_input=decoder_input,
-                decoder_hidden=decoder_hidden,
-                decoder_hidden2=decoder_hidden2,
-                encoder_out=encoder_out,
-                mask=mask,
-                embed=embed,
+                decoder_input=decoder_input,  # (batch_size, embd_size)
+                decoder_hidden=decoder_hidden,  # (batch_size, hidden_size)
+                decoder_hidden2=decoder_hidden2,  # (batch_size, hidden_size)
+                encoder_out=encoder_out,  # (seq_len, batch_size, hidden_size)
+                mask=mask,  # (batch_size, seq_len)
+                embed=embed,  # (batch_size, seq_len, embd_size)
             )
             probs_list.append(probs)
 
@@ -103,16 +106,17 @@ class PointerNetwork(nn.Module):
         self,
         embed: torch.Tensor,  # (batch_size, seq_len, embd_size)
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        batch_size = embed.size(0)
-        # encoder_out: (batch_size, seq_len, hiddne_size)
-        # hc: (num_layers * num_directions, batch_size, hidden_size)
-        encoder_out, encoder_hidden = self.enc(embed)
-        encoder_out = encoder_out.transpose(1, 0)  # (seq_len, batch_size, hidden_size)
 
-        if self.decoder_input_always_zero:
-            decoder_input = to_var(torch.zeros(batch_size, self.embed_size))  # (batch_size, embd_size)
-        else:
-            decoder_input = to_var(embed[:, 0, :])  # (batch_size, embd_size)
+        # embed: (batch_size, seq_len, embd_size)
+        encoder_out, encoder_hidden = self.enc(embed)
+        # encoder_out: (batch_size, seq_len, hiddne_size)
+        # encoder_hidden: (num_layers * num_directions, batch_size, hidden_size)
+        encoder_out = encoder_out.transpose(1, 0)
+        # encoder_out: (seq_len, batch_size, hidden_size)
+
+        # embed: (batch_size, seq_len, embd_size)
+        decoder_input = to_var(embed[:, 0, :])
+        # decoder_input: (batch_size, embd_size)
 
         return (
             decoder_input,  # (batch_size, embd_size)
@@ -129,7 +133,6 @@ class PointerNetwork(nn.Module):
         mask: torch.Tensor,  # (batch_size, seq_len)
         embed: torch.Tensor,  # (batch_size, seq_len, embd_size)
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        batch_size = decoder_input.size(0)
 
         if self.is_GRU:
             # (batch_size, embd_size) * (embd_size, hidden_size) = (batch_size, hidden_size)
@@ -151,20 +154,22 @@ class PointerNetwork(nn.Module):
         probs = probs.masked_fill(mask == 1, -1e6)  # (batch_size, seq_len)
         # probs = F.log_softmax(out, dim=-1)  # (batch_size, seq_len)
 
-        if self.decoder_input_always_zero:
-            decoder_input = to_var(torch.zeros(batch_size, self.embed_size))  # (batch_size, embd_size)
-        else:
-            # indices.shape: (250,)
-            _, indices = torch.max(probs, dim=-1)  # len(indices) = batch_size
-            # mask: (batch_size, seq_len)
-            mask = mask.scatter(dim=-1, index=indices.unsqueeze(-1), value=1)
+        # indices.shape: (250,)
+        _, indices = torch.max(probs, dim=-1)  # len(indices) = batch_size
+        # mask: (batch_size, seq_len)
+        mask = mask.scatter(dim=-1, index=indices.unsqueeze(-1), value=1)
 
-            indices = indices.view(-1, 1, 1)  # (batch_size, 1, 1)
-            indices = indices.expand(size=(-1, -1, self.embed_size))  # (batch_size, 1, embd_size)
+        indices = indices.view(-1, 1, 1)  # (batch_size, 1, 1)
+        indices = indices.expand(size=(-1, -1, self.embed_size))  # (batch_size, 1, embd_size)
 
-            decoder_input = embed.gather(dim=1, index=indices).squeeze(dim=1)  # (batch_size, embd_size)
+        decoder_input = embed.gather(dim=1, index=indices).squeeze(dim=1)  # (batch_size, embd_size)
 
-        return decoder_input, decoder_hidden, decoder_hidden2, probs
+        return (
+            decoder_input,  # (batch_size, embd_size)
+            decoder_hidden,  # (batch_size, hidden_size)
+            decoder_hidden2,  # (batch_size, hidden_size) | None
+            probs,  # (batch_size, seq_len)
+        )
 
 
 def to_var(x: torch.Tensor) -> torch.Tensor:
