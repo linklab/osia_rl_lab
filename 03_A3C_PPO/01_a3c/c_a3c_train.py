@@ -39,7 +39,8 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
 
             self.current_time = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S")
 
-            self.last_episode_wandb_log = 0
+            self.last_global_episode_for_validation = 0
+            self.last_global_episode_wandb_log = 0
 
         def validate_loop(self) -> None:
             total_train_start_time = time.time()
@@ -48,8 +49,11 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
                 validation_conditions = [
                     self.shared_stat.global_episodes.value != 0,
                     self.shared_stat.global_episodes.value % self.train_num_episodes_before_next_validation == 0,
+                    self.shared_stat.global_episodes.value > self.last_global_episode_for_validation
                 ]
                 if all(validation_conditions):
+                    self.last_global_episode_for_validation = self.shared_stat.global_episodes.value
+
                     self.lock.acquire()
                     validation_episode_reward_lst, validation_episode_reward_avg = self.validate()
 
@@ -75,12 +79,12 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
 
                 wandb_log_conditions = [
                     self.run_wandb,
-                    self.shared_stat.global_episodes.value > self.last_episode_wandb_log,
+                    self.shared_stat.global_episodes.value > self.last_global_episode_wandb_log,
                     self.shared_stat.global_episodes.value > self.train_num_episodes_before_next_validation,
                 ]
                 if all(wandb_log_conditions):
                     self.log_wandb(validation_episode_reward_avg)
-                    self.last_episode_wandb_log = self.shared_stat.global_episodes.value
+                    self.last_global_episode_wandb_log = self.shared_stat.global_episodes.value
 
                 if bool(self.shared_stat.is_terminated.value):
                     if self.run_wandb:
@@ -162,7 +166,7 @@ def worker_loop(
             shared_stat,
             env,
             lock,
-            config,
+            config
         ):
             self.worker_id = worker_id
             self.env_name = config["env_name"]

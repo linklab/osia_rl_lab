@@ -21,7 +21,6 @@ class Actor(nn.Module):
         self.fc1 = nn.Linear(n_features, 128)
         self.fc2 = nn.Linear(128, 128)
         self.mu = nn.Linear(128, n_actions)
-        # self.log_std = nn.Parameter(torch.zeros(n_actions))   # Starting with small std deviation
 
         # ln_e(x) = 1.0 --> x = e^1.0 = 2.71
         log_std_param = nn.Parameter(torch.full((n_actions,), 1.0))
