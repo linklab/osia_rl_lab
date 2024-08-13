@@ -32,10 +32,7 @@ def solve(
 
     # Solve the problem
     status = solver.Solve()
-    assert status == pywraplp.Solver.OPTIMAL, (
-        "Solver failed to find optimal solution. "
-        "Solver status:", status
-    )
+    assert status == pywraplp.Solver.OPTIMAL, f"Solver failed to find optimal solution. Solver status: {status}"
 
     # Print the solution
     num_selected_items = 0
@@ -57,5 +54,5 @@ def solve(
         "n_selected_items": num_selected_items,  # int
         "value_allocated": value_allocated,  # value in knapsack
         "value_ratio": value_allocated / sum(values),  # value in knapsack / total value
-        "selected_items": selected_items  # list of selected items
+        "selected_items": selected_items,  # list of selected items
     }

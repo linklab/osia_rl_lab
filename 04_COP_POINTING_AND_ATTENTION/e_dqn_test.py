@@ -31,11 +31,7 @@ def test(env: gym.Env | MultiDimKnapsack, q: QNet, num_episodes: int) -> None:
 
         while not done:
             episode_steps += 1
-            action = q.get_action(
-                obs=observation,
-                available_actions=info["available_actions"],
-                epsilon=0.0
-            )
+            action = q.get_action(obs=observation, available_actions=info["available_actions"], epsilon=0.0)
 
             next_observation, reward, terminated, truncated, info = env.step(action)
 
@@ -65,10 +61,7 @@ def main_play() -> None:
     n_features = env.observation_space.shape[0]
     n_actions = env.action_space.n
     q = QNet(n_features=n_features, n_actions=n_actions)
-    model_params = torch.load(
-        os.path.join(MODEL_DIR, f"dqn_{ENV_NAME}_{N_ITEMS}x{N_RESOURCES}_latest.pth"),
-        weights_only=True
-    )
+    model_params = torch.load(os.path.join(MODEL_DIR, f"dqn_{ENV_NAME}_{N_ITEMS}x{N_RESOURCES}_latest.pth"), weights_only=True)
     q.load_state_dict(model_params)
     q.eval()
 

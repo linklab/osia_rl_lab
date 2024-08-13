@@ -146,14 +146,7 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
 
 
 def worker_loop(
-    process_id,
-    global_actor,
-    global_critic,
-    global_actor_optimizer,
-    global_critic_optimizer,
-    shared_stat,
-    lock,
-    config
+    process_id, global_actor, global_critic, global_actor_optimizer, global_critic_optimizer, shared_stat, lock, config
 ):
     env_name = config["env_name"]
     env = gym.make(env_name)
