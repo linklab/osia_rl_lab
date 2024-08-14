@@ -331,7 +331,7 @@ def worker_loop(
     agent.train_loop()
 
 
-class SharedInfo:
+class SharedStat:
     def __init__(self):
         self.global_episodes = mp.Value("I", 0)  # I: unsigned int
         self.global_time_steps = mp.Value("I", 0)  # I: unsigned int
@@ -362,7 +362,7 @@ class A3C:
         self.global_critic_optimizer = SharedAdam(self.global_critic.parameters(), lr=config["learning_rate"])
 
         self.lock = mp.Lock()
-        self.shared_stat = SharedInfo()
+        self.shared_stat = SharedStat()
 
         if use_wandb:
             current_time = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S")

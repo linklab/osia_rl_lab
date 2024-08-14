@@ -328,7 +328,7 @@ def worker_loop(process_id, global_actor, global_critic, shared_stat, lock, conf
     agent.train_loop()
 
 
-class SharedInfo:
+class SharedStat:
     def __init__(self):
         self.global_episodes = mp.Value("I", 0)  # I: unsigned int
         self.global_time_steps = mp.Value("I", 0)  # I: unsigned int
@@ -353,7 +353,7 @@ class PPO:
         self.global_critic = Critic(n_features=6).share_memory()
 
         self.lock = mp.Lock()
-        self.shared_stat = SharedInfo()
+        self.shared_stat = SharedStat()
 
         if use_wandb:
             current_time = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S")
