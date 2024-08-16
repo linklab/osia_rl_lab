@@ -1,19 +1,49 @@
 import os
-
 from datetime import datetime, timedelta
 import numpy as np
+
 np.set_printoptions(edgeitems=3, linewidth=100000, formatter=dict(float=lambda x: "%5.3f" % x))
 
 import torch
-from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.a_common import env_config, ENV_NAME, NUM_ITEMS, NUM_RESOURCES, STATIC_NUM_RESOURCES
+from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.a_common import env_config, ENV_NAME, NUM_ITEMS, STATIC_NUM_RESOURCES
 from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.c_mkp_env import MkpEnv
-from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.e_qnet import QNet
+from _04_COP_POINTING_AND_ATTENTION._03_PPO_ATTN_MKP.c_ppo_attn_train import ActorAttn
+from _04_COP_POINTING_AND_ATTENTION._03_PPO_ATTN_MKP.b_actor_and_critic_attn import MODEL_DIR
 from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.b_mkp_with_google_or_tools import solve
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def test(env, q, num_episodes):
+def main(num_episodes, env_name):
+    if env_config["use_static_item_resource_demand"]:
+        env_config["num_resources"] = STATIC_NUM_RESOURCES
+
+    env = MkpEnv(env_config=env_config)
+
+    print("*" * 100)
+
+    actor = ActorAttn(
+        n_features=env_config["num_resources"] + 1
+    )
+
+    model_params = torch.load(
+        os.path.join(MODEL_DIR, "{0}_{1}_{2}_latest.pth".format("ppo_attn", NUM_ITEMS, env_name))
+    )
+    actor.load_state_dict(model_params)
+
+    results = test(env, actor, num_episodes=num_episodes)
+
+    print("[PPO_ATTN]   Episode Rewards: {0}, Average: {1:.3f}, Duration: {2}".format(
+        results["rl_episode_reward_lst"], results["rl_episode_reward_avg"], results["rl_duration_avg"]
+    ))
+    print("[ OR TOOL] OR Tool Solutions: {0}, Average: {1:.3f}, Duration: {2}".format(
+        results["or_tool_solution_lst"], results["or_tool_solutions_avg"], results["or_tool_duration_avg"]
+    ))
+
+    env.close()
+
+
+def test(env, actor, num_episodes):
     rl_episode_reward_lst = np.zeros(shape=(num_episodes,), dtype=float)
     rl_duration_lst = []
     or_tool_solution_lst = np.zeros(shape=(num_episodes,), dtype=float)
@@ -29,7 +59,7 @@ def test(env, q, num_episodes):
         rl_start_time = datetime.now()
         while not done:
             episode_steps += 1
-            action = q.get_action(observation, epsilon=0.0, action_mask=info["ACTION_MASK"])
+            action = actor.get_action(observation, action_mask=info["ACTION_MASK"], exploration=False)
 
             next_observation, reward, terminated, truncated, info = env.step(action)
 
@@ -77,37 +107,6 @@ def test(env, q, num_episodes):
         "or_tool_solutions_avg": np.average(or_tool_solution_lst),
         "or_tool_duration_avg": sum(or_tool_duration_lst[1:], timedelta(0)) / (num_episodes - 1)
     }
-
-
-def main(num_episodes, env_name):
-    current_path = os.path.dirname(os.path.realpath(__file__))
-    project_home = os.path.abspath(os.path.join(current_path, os.pardir))
-    model_dir = os.path.join(project_home, "_01_DQN_MKP", "models")
-
-    if env_config["use_static_item_resource_demand"]:
-        env_config["num_resources"] = STATIC_NUM_RESOURCES
-
-    env = MkpEnv(env_config=env_config)
-
-    print("*" * 100)
-
-    q = QNet(n_features=NUM_ITEMS * (NUM_RESOURCES + 1), n_actions=NUM_ITEMS)
-
-    model_params = torch.load(
-        os.path.join(model_dir, "dqn_{0}_{1}_latest.pth".format(NUM_ITEMS, env_name))
-    )
-    q.load_state_dict(model_params)
-
-    results = test(env, q, num_episodes=num_episodes)
-
-    print("[    DQN]   Episode Rewards: {0}, Average: {1:.3f}, Duration: {2}".format(
-        results["rl_episode_reward_lst"], results["rl_episode_reward_avg"], results["rl_duration_avg"]
-    ))
-    print("[OR TOOL] OR Tool Solutions: {0}, Average: {1:.3f}, Duration: {2}".format(
-        results["or_tool_solution_lst"], results["or_tool_solutions_avg"], results["or_tool_duration_avg"]
-    ))
-
-    env.close()
 
 
 if __name__ == "__main__":

@@ -1,8 +1,7 @@
-import os, sys
-
 import time
 from copy import deepcopy
 import numpy as np
+
 np.set_printoptions(edgeitems=3, linewidth=100000, formatter=dict(float=lambda x: "%5.3f" % x))
 
 import torch
@@ -14,81 +13,21 @@ import torch.nn.functional as F
 import torch.optim as optim
 import wandb
 from datetime import datetime
-from shutil import copyfile
 
-from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.a_config import env_config, dqn_config, ENV_NAME, STATIC_NUM_RESOURCES
+
+from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.a_common import env_config, ENV_NAME, STATIC_NUM_RESOURCES, NUM_ITEMS, \
+    EarlyStopModelSaver
 from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.c_mkp_env import MkpEnv
-from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.e_qnet import QNet, ReplayBuffer, Transition
+from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.e_qnet import QNet, ReplayBuffer, Transition, MODEL_DIR
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-class EarlyStopModelSaver:
-    """주어진 patience 이후로 episode_reward가 개선되지 않으면 학습을 조기 중지"""
-
-    def __init__(self, patience, model_dir):
-        """
-        Args:
-            patience (int): episode_reward가 개선될 때까지 기다리는 기간
-        """
-        self.patience = patience
-        self.model_dir = model_dir
-        self.counter = 0
-        self.max_validation_episode_reward = -np.inf
-        self.model_filename_saved = None
-
-    def check(
-            self, validation_episode_reward_avg, num_items, env_name, current_time,
-            n_episode, time_steps, training_time_steps, q
-    ):
-        early_stop = False
-
-        if validation_episode_reward_avg >= self.max_validation_episode_reward:
-            print("[EARLY STOP] validation_episode_reward {0:.5f} is increased to {1:.5f}".format(
-                self.max_validation_episode_reward, validation_episode_reward_avg
-            ))
-            self.model_save(validation_episode_reward_avg, num_items, env_name, n_episode, current_time, q)
-            self.max_validation_episode_reward = validation_episode_reward_avg
-            self.counter = 0
-        else:
-            self.counter += 1
-            if self.counter < self.patience:
-                print("[EARLY STOP] COUNTER: {0} (validation_episode_reward/max_validation_episode_reward={1:.5f}/{2:.5f})".format(
-                    self.counter, validation_episode_reward_avg, self.max_validation_episode_reward
-                ))
-            else:
-                early_stop = True
-                print("[EARLY STOP] COUNTER: {0} - Solved in {1:,} episode, {2:,} steps ({3:,} training steps)!".format(
-                    self.counter, n_episode, time_steps, training_time_steps
-                ))
-        return early_stop
-
-    def model_save(self, validation_episode_reward_avg, num_items, env_name, n_episode, current_time, q):
-        if self.model_filename_saved is not None:
-            os.remove(self.model_filename_saved)
-
-        filename = "dqn_{0}_{1}_{2}_{3:5.3f}_{4}.pth".format(
-            num_items, env_name,
-            current_time, validation_episode_reward_avg, n_episode
-        )
-        filename = os.path.join(self.model_dir, filename)
-        torch.save(q.state_dict(), filename)
-        self.model_filename_saved = filename
-        print("*** MODEL SAVED TO {0}".format(filename))
-
-        latest_file_name = "dqn_{0}_{1}_latest.pth".format(num_items, env_name)
-        copyfile(
-            src=os.path.join(self.model_dir, filename),
-            dst=os.path.join(self.model_dir, latest_file_name)
-        )
-        print("*** MODEL UPDATED TO {0}".format(os.path.join(self.model_dir, latest_file_name)))
-
-
 class DQN:
-    def __init__(self, q, target_q, model_dir, env, validation_env, config, env_config, use_wandb):
+    def __init__(self, model_name, model_dir, q, target_q, env, validation_env, config, env_config, use_wandb):
+        self.model_name = model_name
         self.q = q
         self.target_q = target_q
-        self.model_dir = model_dir
         self.env = env
         self.validation_env = validation_env
         self.use_wandb = use_wandb
@@ -137,14 +76,16 @@ class DQN:
         self.optimizer = optim.Adam(self.q.parameters(), lr=self.learning_rate)
 
         # agent
-        self.replay_buffer = ReplayBuffer(self.replay_buffer_size, device=DEVICE)
+        self.replay_buffer = ReplayBuffer(self.replay_buffer_size)
 
         self.time_steps = 0
         self.total_time_steps = 0
         self.training_time_steps = 0
 
         self.early_stop_model_saver = EarlyStopModelSaver(
-            patience=config["early_stop_patience"], model_dir=self.model_dir
+            model_name=self.model_name,
+            model_dir=model_dir,
+            patience=config["early_stop_patience"]
         )
 
     def epsilon_scheduled(self, current_episode):
@@ -192,9 +133,6 @@ class DQN:
                 if self.total_time_steps % self.steps_between_train == 0 and self.time_steps > self.batch_size:
                     loss = self.train()
 
-            total_training_time = time.time() - total_train_start_time
-            total_training_time_str = time.strftime('%H:%M:%S', time.gmtime(total_training_time))
-
             if n_episode % self.print_episode_interval == 0:
                 print(
                     "[Episode {0:4,}/{1:5,}, Time Steps {2:6,}]".format(
@@ -204,8 +142,7 @@ class DQN:
                     "Replay buffer: {:>6,},".format(self.replay_buffer.size()),
                     "Loss: {:.6f},".format(loss),
                     "Epsilon: {:4.2f},".format(epsilon),
-                    "Training Steps: {:>5,},".format(self.training_time_steps),
-                    "Elapsed Time: {}".format(total_training_time_str)
+                    "Training Steps: {:>5,}".format(self.training_time_steps)
                 )
 
             # print(epsilon, self.epsilon_end, n_episode, self.train_num_episodes_before_next_validation, "!!!")
@@ -213,18 +150,21 @@ class DQN:
                 validation_episode_reward_lst, validation_episode_reward_avg, validation_total_value_lst, validation_total_value_avg = \
                     self.validate()
 
+                total_training_time = time.time() - total_train_start_time
+                total_training_time_str = time.strftime('%H:%M:%S', time.gmtime(total_training_time))
+
                 print("[Validation Episode Reward: {0}] Average: {1:.3f}".format(
                     validation_episode_reward_lst, validation_episode_reward_avg
                 ))
-                print("[ValidationTotal Value: {0}] Average: {1:.3f}".format(
-                    validation_total_value_lst, validation_total_value_avg
+                print("[ValidationTotal Value: {0}] Average: {1:.3f}, Elapsed Time: {2}".format(
+                    validation_total_value_lst, validation_total_value_avg, total_training_time_str
                 ))
 
                 is_terminated = self.early_stop_model_saver.check(
                     validation_episode_reward_avg=validation_episode_reward_avg,
                     num_items=env_config["num_items"], env_name=ENV_NAME, current_time=self.current_time,
                     n_episode=n_episode, time_steps=self.time_steps, training_time_steps=self.training_time_steps,
-                    q=self.q
+                    model=self.q
                 )
 
             if self.use_wandb:
@@ -318,27 +258,34 @@ class DQN:
 
 
 def main():
-    current_path = os.path.dirname(os.path.realpath(__file__))
-    project_home = os.path.abspath(os.path.join(current_path, os.pardir))
-    if project_home not in sys.path:
-        sys.path.append(project_home)
-
-    model_dir = os.path.join(project_home, "_01_DQN_MKP", "models")
-    if not os.path.exists(model_dir):
-        os.mkdir(model_dir)
-
     if env_config["use_static_item_resource_demand"]:
         env_config["num_resources"] = STATIC_NUM_RESOURCES
+
+    dqn_config = {
+        "max_num_episodes": 5000 * NUM_ITEMS,  # 훈련을 위한 최대 에피소드 횟수
+        "batch_size": 256,  # 훈련시 배치에서 한번에 가져오는 랜덤 배치 사이즈
+        "learning_rate": 0.0001,  # 학습율
+        "gamma": 1.0,  # 감가율
+        "steps_between_train": 4,  # 훈련 사이의 환경 스텝 수
+        "target_sync_step_interval": 100 * NUM_ITEMS,  # 기존 Q 모델을 타깃 Q 모델로 동기화시키는 step 간격
+        "replay_buffer_size": 1000 * NUM_ITEMS,  # 리플레이 버퍼 사이즈
+        "epsilon_start": 0.95,  # Epsilon 초기 값
+        "epsilon_end": 0.01,  # Epsilon 최종 값
+        "epsilon_final_scheduled_percent": 0.25,  # Epsilon 최종 값으로 스케줄되는 마지막 에피소드 비율
+        "print_episode_interval": 10,  # Episode 통계 출력에 관한 에피소드 간격
+        "train_num_episodes_before_next_validation": 500,  # 검증 사이 마다 각 훈련 episode 간격
+        "validation_num_episodes": 100,  # 검증에 수행하는 에피소드 횟수
+        "early_stop_patience": NUM_ITEMS * 3,  # episode_reward가 개선될 때까지 기다리는 기간
+        "double_dqn": True
+    }
 
     q = QNet(
         n_features=env_config["num_items"] * (env_config["num_resources"] + 1),
         n_actions=env_config["num_items"],
-        device=DEVICE
     )
     target_q = QNet(
         n_features=env_config["num_items"] * (env_config["num_resources"] + 1),
         n_actions=env_config["num_items"],
-        device=DEVICE
     )
     target_q.load_state_dict(q.state_dict())
 
@@ -349,9 +296,9 @@ def main():
 
     print("*" * 100)
 
-    use_wandb = True
+    use_wandb = False
     dqn = DQN(
-        q=q, target_q=target_q, model_dir=model_dir,
+        model_name="dqn", model_dir=MODEL_DIR, q=q, target_q=target_q,
         env=env, validation_env=validation_env, config=dqn_config, env_config=env_config, use_wandb=use_wandb
     )
     dqn.train_loop()

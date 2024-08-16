@@ -1,22 +1,20 @@
 import os
 
 import numpy as np
+
 np.set_printoptions(edgeitems=3, linewidth=100000, formatter=dict(float=lambda x: "%5.3f" % x))
 
 import torch
-from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.a_config import env_config, ENV_NAME, NUM_ITEMS, NUM_RESOURCES, STATIC_NUM_RESOURCES
+from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.a_common import env_config, ENV_NAME, NUM_ITEMS, STATIC_NUM_RESOURCES
 from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.c_mkp_env import MkpEnv
 from _04_COP_POINTING_AND_ATTENTION._02_DQN_ATTN_MKP.f_dqn_attn_train import QNetAttn
 from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.g_dqn_and_or_tool_test import test
+from _04_COP_POINTING_AND_ATTENTION._02_DQN_ATTN_MKP.e_qnet_attn import MODEL_DIR
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def main(num_episodes, env_name):
-    current_path = os.path.dirname(os.path.realpath(__file__))
-    project_home = os.path.abspath(os.path.join(current_path, os.pardir))
-    model_dir = os.path.join(project_home, "_02_DQN_ATTN_MKP", "models")
-
     if env_config["use_static_item_resource_demand"]:
         env_config["num_resources"] = STATIC_NUM_RESOURCES
 
@@ -25,11 +23,11 @@ def main(num_episodes, env_name):
     print("*" * 100)
 
     q = QNetAttn(
-        n_features=env_config["num_resources"] + 1, n_actions=env_config["num_items"], device=DEVICE
+        n_features=env_config["num_resources"] + 1, device=DEVICE
     )
 
     model_params = torch.load(
-        os.path.join(model_dir, "dqn_{0}_{1}_latest.pth".format(NUM_ITEMS, env_name))
+        os.path.join(MODEL_DIR, "{0}_{1}_{2}_latest.pth".format("dqn_attn", NUM_ITEMS, env_name))
     )
     q.load_state_dict(model_params)
 

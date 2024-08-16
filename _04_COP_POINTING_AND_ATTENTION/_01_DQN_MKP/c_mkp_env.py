@@ -8,7 +8,7 @@ import gymnasium as gym
 import numpy as np
 from gymnasium.core import RenderFrame
 
-from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.a_config import STATIC_RESOURCE_DEMAND_SAMPLE, STATIC_VALUE_SAMPLE
+from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.a_common import STATIC_RESOURCE_DEMAND_SAMPLE, STATIC_VALUE_SAMPLE
 
 
 class MkpEnv(gym.Env):

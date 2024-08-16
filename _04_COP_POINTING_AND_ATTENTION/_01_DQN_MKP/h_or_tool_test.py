@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 import numpy as np
 np.set_printoptions(edgeitems=3, linewidth=100000, formatter=dict(float=lambda x: "%5.3f" % x))
 
-from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.a_config import env_config, STATIC_NUM_RESOURCES
+from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.a_common import env_config, STATIC_NUM_RESOURCES
 from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.c_mkp_env import MkpEnv
 from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.b_mkp_with_google_or_tools import solve
 
