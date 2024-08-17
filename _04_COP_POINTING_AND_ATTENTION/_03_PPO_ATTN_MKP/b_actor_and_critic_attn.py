@@ -12,7 +12,7 @@ MODEL_DIR = os.path.join(CURRENT_PATH, "models")
 if not os.path.exists(MODEL_DIR):
     os.mkdir(MODEL_DIR)
 
-from _04_COP_POINTING_AND_ATTENTION._02_DQN_ATTN_MKP.e_qnet_attn import MultiHeadSelfAttention
+from _04_COP_POINTING_AND_ATTENTION._02_DQN_ATTN_MKP.a_qnet_attn import MultiHeadSelfAttention
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

@@ -4,7 +4,6 @@ import time
 from datetime import datetime
 from shutil import copyfile
 
-import gymnasium as gym
 import numpy as np
 import torch
 import torch.multiprocessing as mp
@@ -16,9 +15,9 @@ from torch.optim import Adam
 
 import wandb
 
-from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.a_common import env_config, ENV_NAME, STATIC_NUM_RESOURCES, NUM_ITEMS, \
+from _04_COP_POINTING_AND_ATTENTION._01_COMMON.a_common import env_config, ENV_NAME, STATIC_NUM_RESOURCES, NUM_ITEMS, \
     EarlyStopModelSaver
-from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.c_mkp_env import MkpEnv
+from _04_COP_POINTING_AND_ATTENTION._01_COMMON.b_mkp_env import MkpEnv
 
 
 def master_loop(global_actor, shared_stat, run_wandb, lock, config):
@@ -131,9 +130,6 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
                     "[TRAIN] Episode Reward": self.shared_stat.last_episode_reward.value,
                     "[TRAIN] Policy Loss": self.shared_stat.last_policy_loss.value,
                     "[TRAIN] Critic Loss": self.shared_stat.last_critic_loss.value,
-                    "[TRAIN] avg_mu_v": self.shared_stat.last_avg_mu_v.value,
-                    "[TRAIN] avg_std_v": self.shared_stat.last_avg_std_v.value,
-                    "[TRAIN] avg_action": self.shared_stat.last_avg_action.value,
                     "Training Episode": self.shared_stat.global_episodes.value,
                     "Training Steps": self.shared_stat.global_training_time_steps.value,
                 }
@@ -428,7 +424,7 @@ def main():
         "early_stop_patience": NUM_ITEMS * 3,               # episode_reward가 개선될 때까지 기다리는 기간
     }
 
-    use_wandb = False
+    use_wandb = True
     ppo = PPO(use_wandb=use_wandb, config=ppo_config)
     ppo.train_loop()
 

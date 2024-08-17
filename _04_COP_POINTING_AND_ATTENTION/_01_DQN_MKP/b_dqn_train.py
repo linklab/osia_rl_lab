@@ -15,10 +15,10 @@ import wandb
 from datetime import datetime
 
 
-from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.a_common import env_config, ENV_NAME, STATIC_NUM_RESOURCES, NUM_ITEMS, \
+from _04_COP_POINTING_AND_ATTENTION._01_COMMON.a_common import env_config, ENV_NAME, STATIC_NUM_RESOURCES, NUM_ITEMS, \
     EarlyStopModelSaver
-from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.c_mkp_env import MkpEnv
-from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.e_qnet import QNet, ReplayBuffer, Transition, MODEL_DIR
+from _04_COP_POINTING_AND_ATTENTION._01_COMMON.b_mkp_env import MkpEnv
+from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.a_qnet import QNet, ReplayBuffer, Transition, MODEL_DIR
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

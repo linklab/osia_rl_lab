@@ -121,9 +121,6 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
                     "[TRAIN] Episode Reward": self.shared_stat.last_episode_reward.value,
                     "[TRAIN] Policy Loss": self.shared_stat.last_policy_loss.value,
                     "[TRAIN] Critic Loss": self.shared_stat.last_critic_loss.value,
-                    "[TRAIN] avg_mu_v": self.shared_stat.last_avg_mu_v.value,
-                    "[TRAIN] avg_std_v": self.shared_stat.last_avg_std_v.value,
-                    "[TRAIN] avg_action": self.shared_stat.last_avg_action.value,
                     "Training Episode": self.shared_stat.global_episodes.value,
                     "Training Steps": self.shared_stat.global_training_time_steps.value,
                 }

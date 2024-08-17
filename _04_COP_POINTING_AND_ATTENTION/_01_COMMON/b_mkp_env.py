@@ -1,14 +1,9 @@
-import enum
-import random
-from datetime import datetime
 from typing import Optional, List, Final, Tuple, Union
 
 from gymnasium import spaces
 import gymnasium as gym
 import numpy as np
 from gymnasium.core import RenderFrame
-
-from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.a_common import STATIC_RESOURCE_DEMAND_SAMPLE, STATIC_VALUE_SAMPLE
 
 
 class MkpEnv(gym.Env):

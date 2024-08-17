@@ -2,9 +2,9 @@ from datetime import datetime, timedelta
 import numpy as np
 np.set_printoptions(edgeitems=3, linewidth=100000, formatter=dict(float=lambda x: "%5.3f" % x))
 
-from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.a_common import env_config, STATIC_NUM_RESOURCES
-from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.c_mkp_env import MkpEnv
-from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.b_mkp_with_google_or_tools import solve
+from _04_COP_POINTING_AND_ATTENTION._01_COMMON.a_common import env_config, STATIC_NUM_RESOURCES
+from _04_COP_POINTING_AND_ATTENTION._01_COMMON.b_mkp_env import MkpEnv
+from _04_COP_POINTING_AND_ATTENTION._01_COMMON.d_mkp_with_google_or_tools import solve
 
 
 def main(num_episodes):
@@ -22,7 +22,7 @@ def main(num_episodes):
         print("*** GOOGLE OR TOOL RESULT ***")
         or_tool_start_time = datetime.now()
 
-        or_tool_solution = solve(
+        or_tool_solution, selected_tasks = solve(
             n_items=env.num_items, n_resources=2,
             item_resource_demands=env.item_resource_demand,
             item_values=env.item_values,
@@ -32,6 +32,7 @@ def main(num_episodes):
         or_tool_duration = datetime.now() - or_tool_start_time
         or_tool_solution_lst[i] = or_tool_solution
         or_tool_duration_lst.append(or_tool_duration)
+        print("Selected Tasks:", selected_tasks)
         print()
 
     results = {

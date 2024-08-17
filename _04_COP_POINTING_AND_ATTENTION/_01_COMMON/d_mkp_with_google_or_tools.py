@@ -22,6 +22,7 @@ def solve(n_items, n_resources, item_resource_demands, item_values, resource_cap
     # Solve the problem
     status = solver.Solve()
 
+    or_tool_selected_tasks = []
     # Print the solution
     if status == pywraplp.Solver.OPTIMAL:
         total_value = solver.Objective().Value()
@@ -34,7 +35,10 @@ def solve(n_items, n_resources, item_resource_demands, item_values, resource_cap
                 for j in range(n_resources):
                     selected_item_demand[j] += item_resource_demands[i][j]
 
-            print("Task {0} [{1:>3},{2:>3}] : [{3:>3}] is {4:<12} ([{5:>3},{6:>3}] : [{7:>3}])".format(
+            if xs[i].solution_value() == 1.0:
+                or_tool_selected_tasks.append(i)
+
+            print("Task {0} [{1:>3},{2:>3}]: [{3:>3}] is {4:<12} ([{5:>3},{6:>3}] : [{7:>3}])".format(
                 i, item_resource_demands[i][0], item_resource_demands[i][1], item_values[i],
                 "selected" if xs[i].solution_value() == 1.0 else "not selected",
                 selected_item_demand[0], selected_item_demand[1],
@@ -44,7 +48,7 @@ def solve(n_items, n_resources, item_resource_demands, item_values, resource_cap
         total_value = None
         print("Solver status: ", status)
 
-    return total_value
+    return total_value, or_tool_selected_tasks
 
 
 if __name__ == "__main__":
@@ -83,10 +87,11 @@ if __name__ == "__main__":
     resource_capacities = [300, 300]
     print("resource_capacities: ", resource_capacities)
 
-    total_value = solve(
+    total_value, or_tool_selected_tasks = solve(
         n_items=n_items, n_resources=2, item_resource_demands=item_resource_demands,
         item_values=item_values,
         resource_capacities=resource_capacities
     )
 
     print("Total Value: {0}".format(total_value))
+    print("Selected Tasks: {0}".format(or_tool_selected_tasks))

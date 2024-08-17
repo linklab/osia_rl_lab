@@ -5,11 +5,11 @@ import numpy as np
 np.set_printoptions(edgeitems=3, linewidth=100000, formatter=dict(float=lambda x: "%5.3f" % x))
 
 import torch
-from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.a_common import env_config, ENV_NAME, NUM_ITEMS, STATIC_NUM_RESOURCES
-from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.c_mkp_env import MkpEnv
-from _04_COP_POINTING_AND_ATTENTION._02_DQN_ATTN_MKP.f_dqn_attn_train import QNetAttn
-from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.g_dqn_and_or_tool_test import test
-from _04_COP_POINTING_AND_ATTENTION._02_DQN_ATTN_MKP.e_qnet_attn import MODEL_DIR
+from _04_COP_POINTING_AND_ATTENTION._01_COMMON.a_common import env_config, ENV_NAME, NUM_ITEMS, STATIC_NUM_RESOURCES
+from _04_COP_POINTING_AND_ATTENTION._01_COMMON.b_mkp_env import MkpEnv
+from _04_COP_POINTING_AND_ATTENTION._02_DQN_ATTN_MKP.b_dqn_attn_train import QNetAttn
+from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.c_dqn_and_or_tool_test import test
+from _04_COP_POINTING_AND_ATTENTION._02_DQN_ATTN_MKP.a_qnet_attn import MODEL_DIR
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

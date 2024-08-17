@@ -2,8 +2,8 @@ import random
 
 import numpy as np
 
-from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.c_mkp_env import MkpEnv
-from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.a_common import env_config, STATIC_NUM_RESOURCES
+from _04_COP_POINTING_AND_ATTENTION._01_COMMON.b_mkp_env import MkpEnv
+from _04_COP_POINTING_AND_ATTENTION._01_COMMON.a_common import env_config, STATIC_NUM_RESOURCES
 
 
 class Dummy_Agent:

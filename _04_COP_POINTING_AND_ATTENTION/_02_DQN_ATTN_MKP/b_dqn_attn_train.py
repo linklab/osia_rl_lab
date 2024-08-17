@@ -5,10 +5,10 @@ np.set_printoptions(edgeitems=3, linewidth=100000, formatter=dict(float=lambda x
 import torch
 from torchinfo import summary
 
-from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.a_common import env_config, STATIC_NUM_RESOURCES, NUM_ITEMS
-from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.c_mkp_env import MkpEnv
-from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.f_dqn_train import DQN
-from _04_COP_POINTING_AND_ATTENTION._02_DQN_ATTN_MKP.e_qnet_attn import QNetAttn, MODEL_DIR
+from _04_COP_POINTING_AND_ATTENTION._01_COMMON.a_common import env_config, STATIC_NUM_RESOURCES, NUM_ITEMS
+from _04_COP_POINTING_AND_ATTENTION._01_COMMON.b_mkp_env import MkpEnv
+from _04_COP_POINTING_AND_ATTENTION._01_DQN_MKP.b_dqn_train import DQN
+from _04_COP_POINTING_AND_ATTENTION._02_DQN_ATTN_MKP.a_qnet_attn import QNetAttn, MODEL_DIR
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
