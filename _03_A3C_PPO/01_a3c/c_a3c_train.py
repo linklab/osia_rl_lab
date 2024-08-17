@@ -17,12 +17,12 @@ from a_shared_adam import SharedAdam
 from b_actor_and_critic import MODEL_DIR, Actor, Buffer, Critic, Transition
 
 
-def master_loop(global_actor, shared_stat, run_wandb, lock, config):
+def master_loop(global_actor, shared_stat, run_wandb, global_lock, config):
     env_name = config["env_name"]
     test_env = gym.make(env_name)
 
     class A3CMaster:
-        def __init__(self, global_actor, shared_stat, run_wandb, test_env, lock, config):
+        def __init__(self, global_actor, shared_stat, run_wandb, test_env, global_lock, config):
             self.env_name = config["env_name"]
             self.is_terminated = False
 
@@ -31,7 +31,7 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
             self.shared_stat = shared_stat
             self.run_wandb = run_wandb
             self.test_env = test_env
-            self.lock = lock
+            self.global_lock = global_lock
 
             self.train_num_episodes_before_next_validation = config["train_num_episodes_before_next_validation"]
             self.validation_num_episodes = config["validation_num_episodes"]
@@ -54,7 +54,7 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
                 if all(validation_conditions):
                     self.last_global_episode_for_validation = self.shared_stat.global_episodes.value
 
-                    self.lock.acquire()
+                    self.global_lock.acquire()
                     validation_episode_reward_lst, validation_episode_reward_avg = self.validate()
 
                     total_training_time = time.time() - total_train_start_time
@@ -75,7 +75,7 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
                         self.model_save(validation_episode_reward_avg)
                         self.shared_stat.is_terminated.value = 1  # break
 
-                    self.lock.release()
+                    self.global_lock.release()
 
                 wandb_log_conditions = [
                     self.run_wandb,
@@ -142,7 +142,7 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
         shared_stat=shared_stat,
         run_wandb=run_wandb,
         test_env=test_env,
-        lock=lock,
+        global_lock=global_lock,
         config=config,
     )
 
@@ -150,7 +150,7 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
 
 
 def worker_loop(
-    process_id, global_actor, global_critic, global_actor_optimizer, global_critic_optimizer, shared_stat, lock, config
+    process_id, global_actor, global_critic, global_actor_optimizer, global_critic_optimizer, shared_stat, global_lock, config
 ):
     env_name = config["env_name"]
     env = gym.make(env_name)
@@ -165,7 +165,7 @@ def worker_loop(
             global_critic_optimizer,
             shared_stat,
             env,
-            lock,
+            global_lock,
             config
         ):
             self.worker_id = worker_id
@@ -185,7 +185,7 @@ def worker_loop(
             self.global_actor_optimizer = global_actor_optimizer
             self.global_critic_optimizer = global_critic_optimizer
 
-            self.lock = lock
+            self.global_lock = global_lock
 
             self.max_num_episodes = config["max_num_episodes"]
             self.batch_size = config["batch_size"]
@@ -259,7 +259,7 @@ def worker_loop(
             # Getting values from buffer
             observations, actions, next_observations, rewards, dones = self.buffer.get()
 
-            self.lock.acquire()
+            self.global_lock.acquire()
 
             # Calculating target values
             values = self.local_critic(observations).squeeze(dim=-1)
@@ -306,7 +306,7 @@ def worker_loop(
             self.global_actor_optimizer.step()
             self.local_actor.load_state_dict(self.global_actor.state_dict())
 
-            self.lock.release()
+            self.global_lock.release()
 
             return (
                 actor_loss.item(),
@@ -324,7 +324,7 @@ def worker_loop(
         global_critic_optimizer=global_critic_optimizer,
         shared_stat=shared_stat,
         env=env,
-        lock=lock,
+        global_lock=global_lock,
         config=config,
     )
 
@@ -337,7 +337,6 @@ class SharedStat:
         self.global_time_steps = mp.Value("I", 0)  # I: unsigned int
         self.global_training_time_steps = mp.Value("I", 0)  # I: unsigned int
 
-        self.train_result_lock = mp.Lock()
         self.last_episode_reward = mp.Value("d", 0.0)  # d: double
         self.last_policy_loss = mp.Value("d", 0.0)  # d: double
         self.last_critic_loss = mp.Value("d", 0.0)  # d: double
@@ -361,7 +360,7 @@ class A3C:
         self.global_actor_optimizer = SharedAdam(self.global_actor.parameters(), lr=config["learning_rate"])
         self.global_critic_optimizer = SharedAdam(self.global_critic.parameters(), lr=config["learning_rate"])
 
-        self.lock = mp.Lock()
+        self.global_lock = mp.Lock()
         self.shared_stat = SharedStat()
 
         if use_wandb:
@@ -377,15 +376,8 @@ class A3C:
         for i in range(self.num_workers):
             worker_process = mp.Process(
                 target=worker_loop,
-                args=(
-                    i,
-                    self.global_actor,
-                    self.global_critic,
-                    self.global_actor_optimizer,
-                    self.global_critic_optimizer,
-                    self.shared_stat,
-                    self.lock,
-                    self.config,
+                args=(i, self.global_actor, self.global_critic, self.global_actor_optimizer,
+                      self.global_critic_optimizer, self.shared_stat, self.global_lock, self.config,
                 ),
             )
             worker_process.start()
@@ -393,12 +385,10 @@ class A3C:
             self.worker_processes.append(worker_process)
 
         master_process = mp.Process(
-            target=master_loop, args=(self.global_actor, self.shared_stat, self.run_wandb, self.lock, self.config)
+            target=master_loop, args=(self.global_actor, self.shared_stat, self.run_wandb, self.global_lock, self.config)
         )
         master_process.start()
         print(">>> Master Process: {0} Started!".format(master_process.pid))
-
-        ###########################
 
         for worker_process in self.worker_processes:
             worker_process.join()
@@ -411,7 +401,7 @@ class A3C:
             self.run_wandb.finish()
 
 
-def main() -> None:
+def main():
     print("TORCH VERSION:", torch.__version__)
     ENV_NAME = "Pendulum-v1"
 

@@ -17,12 +17,12 @@ from torch.optim import Adam
 from b_actor_and_critic import MODEL_DIR, Actor, Buffer, Critic, Transition
 
 
-def master_loop(global_actor, shared_stat, run_wandb, lock, config):
+def master_loop(global_actor, shared_stat, run_wandb, global_lock, config):
     env_name = config["env_name"]
     test_env = gym.make(env_name)
 
     class PPOMaster:
-        def __init__(self, global_actor, shared_stat, run_wandb, test_env, lock, config):
+        def __init__(self, global_actor, shared_stat, run_wandb, test_env, global_lock, config):
             self.env_name = config["env_name"]
             self.is_terminated = False
 
@@ -31,7 +31,7 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
             self.shared_stat = shared_stat
             self.run_wandb = run_wandb
             self.test_env = test_env
-            self.lock = lock
+            self.global_lock = global_lock
 
             self.train_num_episodes_before_next_validation = config["train_num_episodes_before_next_validation"]
             self.validation_num_episodes = config["validation_num_episodes"]
@@ -54,7 +54,7 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
                 if all(validation_conditions):
                     self.last_global_episode_for_validation = self.shared_stat.global_episodes.value
 
-                    self.lock.acquire()
+                    self.global_lock.acquire()
                     validation_episode_reward_lst, validation_episode_reward_avg = self.validate()
 
                     total_training_time = time.time() - total_train_start_time
@@ -75,7 +75,7 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
                         self.model_save(validation_episode_reward_avg)
                         self.shared_stat.is_terminated.value = 1  # break
 
-                    self.lock.release()
+                    self.global_lock.release()
 
                 wandb_log_conditions = [
                     self.run_wandb,
@@ -142,7 +142,7 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
         shared_stat=shared_stat,
         run_wandb=run_wandb,
         test_env=test_env,
-        lock=lock,
+        global_lock=global_lock,
         config=config,
     )
 
@@ -150,7 +150,7 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
 
 
 def worker_loop(
-        process_id, global_actor, global_critic, shared_stat, lock, config):
+        process_id, global_actor, global_critic, shared_stat, global_lock, config):
     env_name = config["env_name"]
     env = gym.make(env_name)
 
@@ -162,7 +162,7 @@ def worker_loop(
             global_critic,
             shared_stat,
             env,
-            lock,
+            global_lock,
             config
         ):
             self.worker_id = worker_id
@@ -182,7 +182,7 @@ def worker_loop(
             self.local_actor_optimizer = Adam(self.local_actor.parameters(), lr=config["learning_rate"])
             self.local_critic_optimizer = Adam(self.local_critic.parameters(), lr=config["learning_rate"])
 
-            self.lock = lock
+            self.global_lock = global_lock
 
             self.max_num_episodes = config["max_num_episodes"]
             self.ppo_epochs = config["ppo_epochs"]
@@ -259,11 +259,11 @@ def worker_loop(
             # Getting values from buffer
             observations, actions, next_observations, rewards, dones = self.buffer.get()
 
-            self.lock.acquire()
+            self.global_lock.acquire()
 
             self.local_critic.load_state_dict(self.global_critic.state_dict())
             self.local_actor.load_state_dict(self.global_actor.state_dict())
-            self.lock.release()
+            self.global_lock.release()
 
             old_mu, old_std = self.local_actor.forward(observations)
             old_dist = Normal(old_mu, old_std)
@@ -311,10 +311,10 @@ def worker_loop(
                 self.local_actor_optimizer.step()
 
             # GLOBAL MODEL UPDATE
-            self.lock.acquire()
+            self.global_lock.acquire()
             self.global_actor.load_state_dict(self.local_actor.state_dict())
             self.global_critic.load_state_dict(self.local_critic.state_dict())
-            self.lock.release()
+            self.global_lock.release()
 
             return (
                 actor_loss.item(),
@@ -330,7 +330,7 @@ def worker_loop(
         global_critic=global_critic,
         shared_stat=shared_stat,
         env=env,
-        lock=lock,
+        global_lock=global_lock,
         config=config,
     )
 
@@ -343,7 +343,6 @@ class SharedStat:
         self.global_time_steps = mp.Value("I", 0)  # I: unsigned int
         self.global_training_time_steps = mp.Value("I", 0)  # I: unsigned int
 
-        self.train_result_lock = mp.Lock()
         self.last_episode_reward = mp.Value("d", 0.0)  # d: double
         self.last_policy_loss = mp.Value("d", 0.0)  # d: double
         self.last_critic_loss = mp.Value("d", 0.0)  # d: double
@@ -364,7 +363,7 @@ class PPO:
         self.global_actor = Actor(n_features=3, n_actions=1).share_memory()
         self.global_critic = Critic(n_features=3).share_memory()
 
-        self.lock = mp.Lock()
+        self.global_lock = mp.Lock()
         self.shared_stat = SharedStat()
 
         if use_wandb:
@@ -385,7 +384,7 @@ class PPO:
                     self.global_actor,
                     self.global_critic,
                     self.shared_stat,
-                    self.lock,
+                    self.global_lock,
                     self.config,
                 ),
             )
@@ -394,7 +393,7 @@ class PPO:
             self.worker_processes.append(worker_process)
 
         master_process = mp.Process(
-            target=master_loop, args=(self.global_actor, self.shared_stat, self.run_wandb, self.lock, self.config)
+            target=master_loop, args=(self.global_actor, self.shared_stat, self.run_wandb, self.global_lock, self.config)
         )
         master_process.start()
         print(">>> Master Process: {0} Started!".format(master_process.pid))

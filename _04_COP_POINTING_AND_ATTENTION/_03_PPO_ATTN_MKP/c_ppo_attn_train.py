@@ -20,11 +20,11 @@ from _04_COP_POINTING_AND_ATTENTION._01_COMMON.a_common import env_config, ENV_N
 from _04_COP_POINTING_AND_ATTENTION._01_COMMON.b_mkp_env import MkpEnv
 
 
-def master_loop(global_actor, shared_stat, run_wandb, lock, config):
+def master_loop(global_actor, shared_stat, run_wandb, global_lock, config):
     test_env = MkpEnv(env_config=env_config)
 
     class PPOMaster:
-        def __init__(self, global_actor, shared_stat, run_wandb, test_env, lock, config):
+        def __init__(self, global_actor, shared_stat, run_wandb, test_env, global_lock, config):
             self.is_terminated = False
 
             self.global_actor = global_actor
@@ -32,7 +32,7 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
             self.shared_stat = shared_stat
             self.run_wandb = run_wandb
             self.test_env = test_env
-            self.lock = lock
+            self.global_lock = global_lock
 
             self.train_num_episodes_before_next_validation = config["train_num_episodes_before_next_validation"]
             self.validation_num_episodes = config["validation_num_episodes"]
@@ -60,7 +60,7 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
                 if all(validation_conditions):
                     self.last_global_episode_for_validation = self.shared_stat.global_episodes.value
 
-                    self.lock.acquire()
+                    self.global_lock.acquire()
                     validation_episode_reward_lst, validation_episode_reward_avg = self.validate()
 
                     total_training_time = time.time() - total_train_start_time
@@ -84,7 +84,7 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
                     if is_terminated:
                         self.shared_stat.is_terminated.value = 1  # break
 
-                    self.lock.release()
+                    self.global_lock.release()
 
                 wandb_log_conditions = [
                     self.run_wandb,
@@ -148,18 +148,18 @@ def master_loop(global_actor, shared_stat, run_wandb, lock, config):
         shared_stat=shared_stat,
         run_wandb=run_wandb,
         test_env=test_env,
-        lock=lock,
+        global_lock=global_lock,
         config=config,
     )
 
     master.validate_loop()
 
 
-def worker_loop(process_id, global_actor, global_critic, shared_stat, lock, config):
+def worker_loop(process_id, global_actor, global_critic, shared_stat, global_lock, config):
     env = MkpEnv(env_config=env_config)
 
     class PPOAgent:
-        def __init__(self, worker_id, global_actor, global_critic, shared_stat, env, lock, config):
+        def __init__(self, worker_id, global_actor, global_critic, shared_stat, env, global_lock, config):
             self.worker_id = worker_id
             self.env = env
             self.is_terminated = False
@@ -176,7 +176,7 @@ def worker_loop(process_id, global_actor, global_critic, shared_stat, lock, conf
             self.local_actor_optimizer = Adam(self.local_actor.parameters(), lr=config["learning_rate"])
             self.local_critic_optimizer = Adam(self.local_critic.parameters(), lr=config["learning_rate"])
 
-            self.lock = lock
+            self.global_lock = global_lock
 
             self.max_num_episodes = config["max_num_episodes"]
             self.ppo_epochs = config["ppo_epochs"]
@@ -257,10 +257,10 @@ def worker_loop(process_id, global_actor, global_critic, shared_stat, lock, conf
             # rewards.shape: [256, 1]
             # dones.shape: [256]
 
-            self.lock.acquire()
+            self.global_lock.acquire()
             self.local_critic.load_state_dict(self.global_critic.state_dict())
             self.local_actor.load_state_dict(self.global_actor.state_dict())
-            self.lock.release()
+            self.global_lock.release()
 
             old_mu = self.local_actor.forward(observations)
             # old_mu = old_mu.masked_fill(action_masks, 0.0)
@@ -313,10 +313,10 @@ def worker_loop(process_id, global_actor, global_critic, shared_stat, lock, conf
                 self.local_actor_optimizer.step()
 
             # GLOBAL MODEL UPDATE
-            self.lock.acquire()
+            self.global_lock.acquire()
             self.global_actor.load_state_dict(self.local_actor.state_dict())
             self.global_critic.load_state_dict(self.local_critic.state_dict())
-            self.lock.release()
+            self.global_lock.release()
 
             return (
                 actor_loss.item(),
@@ -329,7 +329,7 @@ def worker_loop(process_id, global_actor, global_critic, shared_stat, lock, conf
         global_critic=global_critic,
         shared_stat=shared_stat,
         env=env,
-        lock=lock,
+        global_lock=global_lock,
         config=config,
     )
 
@@ -342,7 +342,6 @@ class SharedStat:
         self.global_time_steps = mp.Value("I", 0)  # I: unsigned int
         self.global_training_time_steps = mp.Value("I", 0)  # I: unsigned int
 
-        self.train_result_lock = mp.Lock()
         self.last_episode_reward = mp.Value("d", 0.0)  # d: double
         self.last_policy_loss = mp.Value("d", 0.0)  # d: double
         self.last_critic_loss = mp.Value("d", 0.0)  # d: double
@@ -364,7 +363,7 @@ class PPO:
             n_features=env_config["num_resources"] + 1, n_items=NUM_ITEMS
         ).share_memory()
 
-        self.lock = mp.Lock()
+        self.global_lock = mp.Lock()
         self.shared_stat = SharedStat()
 
         if use_wandb:
@@ -379,14 +378,14 @@ class PPO:
     def train_loop(self):
         for i in range(self.num_workers):
             worker_process = mp.Process(
-                target=worker_loop, args=(i, self.global_actor, self.global_critic, self.shared_stat, self.lock, self.config)
+                target=worker_loop, args=(i, self.global_actor, self.global_critic, self.shared_stat, self.global_lock, self.config)
             )
             worker_process.start()
             print(">>> Worker Process: {0} Started!".format(worker_process.pid))
             self.worker_processes.append(worker_process)
 
         master_process = mp.Process(
-            target=master_loop, args=(self.global_actor, self.shared_stat, self.run_wandb, self.lock, self.config)
+            target=master_loop, args=(self.global_actor, self.shared_stat, self.run_wandb, self.global_lock, self.config)
         )
         master_process.start()
         print(">>> Master Process: {0} Started!".format(master_process.pid))
