@@ -262,6 +262,15 @@ def worker_loop(process_id, global_actor, global_critic, shared_stat, global_loc
             self.local_actor.load_state_dict(self.global_actor.state_dict())
             self.global_lock.release()
 
+            # Calculating target values
+            values = self.local_critic(observations).squeeze(dim=-1)
+            next_values = self.local_critic(next_observations).squeeze(dim=-1)
+            next_values[dones] = 0.0
+            q_values = rewards.squeeze(dim=-1) + self.gamma * next_values
+            # Normalized advantage calculation
+            advantages = q_values - values
+            advantages = (advantages - torch.mean(advantages)) / (torch.std(advantages) + 1e-7)
+
             old_mu = self.local_actor.forward(observations)
             # old_mu = old_mu.masked_fill(action_masks, 0.0)
             old_dist = Categorical(probs=old_mu)
@@ -273,20 +282,12 @@ def worker_loop(process_id, global_actor, global_critic, shared_stat, global_loc
             for epoch in range(self.ppo_epochs):
                 # Calculating target values
                 values = self.local_critic(observations).squeeze(dim=-1)
-                next_values = self.local_critic(next_observations).squeeze(dim=-1)
-                next_values[dones] = 0.0
-
-                q_values = rewards.squeeze(dim=-1) + self.gamma * next_values
 
                 # CRITIC UPDATE
                 critic_loss = F.mse_loss(q_values.detach(), values)
                 self.local_critic_optimizer.zero_grad()
                 critic_loss.backward()
                 self.local_critic_optimizer.step()
-
-                # Normalized advantage calculation
-                advantages = q_values - values
-                advantages = (advantages - torch.mean(advantages)) / (torch.std(advantages) + 1e-7)
 
                 # Actor Loss computing
                 mu = self.local_actor.forward(observations)

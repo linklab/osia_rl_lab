@@ -280,10 +280,6 @@ def worker_loop(
             for epoch in range(self.ppo_epochs):
                 # Calculating target values
                 values = self.local_critic(observations).squeeze(dim=-1)
-                next_values = self.local_critic(next_observations).squeeze(dim=-1)
-                next_values[dones] = 0.0
-
-                q_values = rewards.squeeze(dim=-1) + self.gamma * next_values
 
                 # CRITIC UPDATE
                 critic_loss = F.mse_loss(q_values.detach(), values)
