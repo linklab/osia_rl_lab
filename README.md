@@ -12,3 +12,8 @@ pip install -r requirements.txt
 
 and install PyTorch from
 <https://pytorch.org/get-started/locally/>
+
+## wandb local server start/stop
+- wandb server start
+- wandb server stop
+

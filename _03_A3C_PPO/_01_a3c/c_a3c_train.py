@@ -129,7 +129,7 @@ def master_loop(global_actor, shared_stat, run_wandb, global_lock, config):
                 }
             )
 
-        def model_save(self, validation_episode_reward_avg: float) -> None:
+        def model_save(self, validation_episode_reward_avg: float):
             filename = "a3c_{0}_{1:4.1f}_{2}.pth".format(self.env_name, validation_episode_reward_avg, self.current_time)
             torch.save(self.global_actor.state_dict(), os.path.join(MODEL_DIR, filename))
 
@@ -202,7 +202,7 @@ def worker_loop(
 
             self.current_time = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S")
 
-        def train_loop(self) -> None:
+        def train_loop(self):
             policy_loss = critic_loss = 0.0
 
             for n_episode in range(1, self.max_num_episodes + 1):
@@ -252,7 +252,7 @@ def worker_loop(
                 if bool(self.shared_stat.is_terminated.value):
                     break
 
-        def train(self) -> tuple[float, float, float, float, float]:
+        def train(self):
             self.training_time_steps += 1
             self.shared_stat.global_training_time_steps.value += 1
 
@@ -294,9 +294,8 @@ def worker_loop(
             entropy = dist.entropy().squeeze(dim=-1)
             entropy_sum = entropy.sum()
 
-            actor_loss = -1.0 * log_pi_advantages_sum - 1.0 * entropy_sum * self.entropy_beta
-
             # Actor Update
+            actor_loss = -1.0 * log_pi_advantages_sum - 1.0 * entropy_sum * self.entropy_beta
             self.global_actor_optimizer.zero_grad()
             for local_param in self.local_actor.parameters():
                 local_param.grad = None
@@ -406,17 +405,17 @@ def main():
     ENV_NAME = "Pendulum-v1"
 
     config = {
-        "env_name": ENV_NAME,  # 환경의 이름
-        "num_workers": 4,  # 동시 수행 Worker Process 수
-        "max_num_episodes": 200_000,  # 훈련을 위한 최대 에피소드 횟수
-        "batch_size": 256,  # 훈련시 배치에서 한번에 가져오는 랜덤 배치 사이즈
-        "learning_rate": 0.0003,  # 학습율
-        "gamma": 0.99,  # 감가율
-        "entropy_beta": 0.03,  # 엔트로피 가중치
-        "print_episode_interval": 20,  # Episode 통계 출력에 관한 에피소드 간격
-        "train_num_episodes_before_next_validation": 100,  # 검증 사이 마다 각 훈련 episode 간격
-        "validation_num_episodes": 3,  # 검증에 수행하는 에피소드 횟수
-        "episode_reward_avg_solved": -150,  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
+        "env_name": ENV_NAME,                               # 환경의 이름
+        "num_workers": 4,                                   # 동시 수행 Worker Process 수
+        "max_num_episodes": 200_000,                        # 훈련을 위한 최대 에피소드 횟수
+        "batch_size": 256,                                  # 훈련시 배치에서 한번에 가져오는 랜덤 배치 사이즈
+        "learning_rate": 0.0003,                            # 학습율
+        "gamma": 0.99,                                      # 감가율
+        "entropy_beta": 0.03,                               # 엔트로피 가중치
+        "print_episode_interval": 20,                       # Episode 통계 출력에 관한 에피소드 간격
+        "train_num_episodes_before_next_validation": 100 * 4,   # 검증 사이 마다 각 훈련 episode 간격
+        "validation_num_episodes": 3,                       # 검증에 수행하는 에피소드 횟수
+        "episode_reward_avg_solved": -150,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
     }
 
     use_wandb = True

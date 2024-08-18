@@ -265,7 +265,7 @@ def main() -> None:
         "episode_reward_avg_solved": -150,  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
     }
 
-    use_wandb = False
+    use_wandb = True
     a2c = A2C(env=env, test_env=test_env, config=config, use_wandb=use_wandb)
     a2c.train_loop()
 
