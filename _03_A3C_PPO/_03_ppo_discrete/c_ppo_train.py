@@ -253,6 +253,14 @@ def worker_loop(process_id, global_actor, global_critic, shared_stat, global_loc
             self.local_actor.load_state_dict(self.global_actor.state_dict())
             self.global_lock.release()
 
+            values = self.local_critic(observations).squeeze(dim=-1)
+            next_values = self.local_critic(next_observations).squeeze(dim=-1)
+            next_values[dones] = 0.0
+            q_values = rewards.squeeze(dim=-1) + self.gamma * next_values
+            # Normalized advantage calculation
+            advantages = q_values - values
+            advantages = (advantages - torch.mean(advantages)) / (torch.std(advantages) + 1e-7)
+
             old_mu = self.local_actor.forward(observations)
             old_dist = Categorical(probs=old_mu)
             old_action_log_probs = old_dist.log_prob(value=actions.squeeze(dim=-1)).squeeze(dim=-1)
@@ -273,10 +281,6 @@ def worker_loop(process_id, global_actor, global_critic, shared_stat, global_loc
                 self.local_critic_optimizer.zero_grad()
                 critic_loss.backward()
                 self.local_critic_optimizer.step()
-
-                # Normalized advantage calculation
-                advantages = q_values - values
-                advantages = (advantages - torch.mean(advantages)) / (torch.std(advantages) + 1e-7)
 
                 # Actor Loss computing
                 mu = self.local_actor.forward(observations)
@@ -394,7 +398,7 @@ def main():
 
     config = {
         "env_name": ENV_NAME,                               # 환경의 이름
-        "num_workers": 1,                                   # 동시 수행 Worker Process 수
+        "num_workers": 4,                                   # 동시 수행 Worker Process 수
         "max_num_episodes": 200_000,                        # 훈련을 위한 최대 에피소드 횟수
         "ppo_epochs": 10,                                   # PPO 내부 업데이트 횟수
         "ppo_clip_coefficient": 0.2,                        # PPO Ratio Clip Coefficient
@@ -408,7 +412,7 @@ def main():
         "episode_reward_avg_solved": -75,                   # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
     }
 
-    use_wandb = False
+    use_wandb = True
     ppo = PPO(use_wandb=use_wandb, config=config)
     ppo.train_loop()
 

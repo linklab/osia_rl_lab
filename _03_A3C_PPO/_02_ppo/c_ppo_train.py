@@ -265,6 +265,14 @@ def worker_loop(
             self.local_actor.load_state_dict(self.global_actor.state_dict())
             self.global_lock.release()
 
+            values = self.local_critic(observations).squeeze(dim=-1)
+            next_values = self.local_critic(next_observations).squeeze(dim=-1)
+            next_values[dones] = 0.0
+            q_values = rewards.squeeze(dim=-1) + self.gamma * next_values
+            # Normalized advantage calculation
+            advantages = q_values - values
+            advantages = (advantages - torch.mean(advantages)) / (torch.std(advantages) + 1e-7)
+
             old_mu, old_std = self.local_actor.forward(observations)
             old_dist = Normal(old_mu, old_std)
             old_action_log_probs = old_dist.log_prob(value=actions).squeeze(dim=-1)
@@ -282,10 +290,6 @@ def worker_loop(
                 self.local_critic_optimizer.zero_grad()
                 critic_loss.backward()
                 self.local_critic_optimizer.step()
-
-                # Normalized advantage calculation
-                advantages = q_values - values
-                advantages = (advantages - torch.mean(advantages)) / (torch.std(advantages) + 1e-7)
 
                 # Actor Loss computing
                 mu, std = self.local_actor.forward(observations)
