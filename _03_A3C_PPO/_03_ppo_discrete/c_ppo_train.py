@@ -68,7 +68,7 @@ def master_loop(global_actor, shared_stat, run_wandb, global_lock, config):
 
                     if validation_episode_reward_avg > self.episode_reward_avg_solved:
                         print(
-                            "Solved in {0:,} steps ({1:,} training steps)!".format(
+                            "Solved in {0:,} time steps ({1:,} training steps)!".format(
                                 self.shared_stat.global_time_steps.value, self.shared_stat.global_training_time_steps.value
                             )
                         )
@@ -256,9 +256,9 @@ def worker_loop(process_id, global_actor, global_critic, shared_stat, global_loc
             values = self.local_critic(observations).squeeze(dim=-1)
             next_values = self.local_critic(next_observations).squeeze(dim=-1)
             next_values[dones] = 0.0
-            q_values = rewards.squeeze(dim=-1) + self.gamma * next_values
+            target_values = rewards.squeeze(dim=-1) + self.gamma * next_values
             # Normalized advantage calculation
-            advantages = q_values - values
+            advantages = target_values - values
             advantages = (advantages - torch.mean(advantages)) / (torch.std(advantages) + 1e-7)
 
             old_mu = self.local_actor.forward(observations)
@@ -269,11 +269,10 @@ def worker_loop(process_id, global_actor, global_critic, shared_stat, global_loc
             # old_action_log_probs.shape: [256]
 
             for epoch in range(self.ppo_epochs):
-                # Calculating target values
                 values = self.local_critic(observations).squeeze(dim=-1)
 
                 # CRITIC UPDATE
-                critic_loss = F.mse_loss(q_values.detach(), values)
+                critic_loss = F.mse_loss(target_values.detach(), values)
                 self.local_critic_optimizer.zero_grad()
                 critic_loss.backward()
                 self.local_critic_optimizer.step()

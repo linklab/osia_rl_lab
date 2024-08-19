@@ -42,7 +42,7 @@ def master_loop(global_actor, shared_stat, run_wandb, global_lock, config):
             self.last_global_episode_for_validation = 0
             self.last_global_episode_wandb_log = 0
 
-        def validate_loop(self) -> None:
+        def validate_loop(self):
             total_train_start_time = time.time()
 
             while True:
@@ -266,10 +266,10 @@ def worker_loop(
             next_values = self.local_critic(next_observations).squeeze(dim=-1)
             next_values[dones] = 0.0
 
-            q_values = rewards.squeeze(dim=-1) + self.gamma * next_values
+            target_values = rewards.squeeze(dim=-1) + self.gamma * next_values
 
             # CRITIC UPDATE
-            critic_loss = F.mse_loss(q_values.detach(), values)
+            critic_loss = F.mse_loss(target_values.detach(), values)
             self.global_critic_optimizer.zero_grad()
             for local_param in self.local_critic.parameters():
                 local_param.grad = None
@@ -280,7 +280,7 @@ def worker_loop(
             self.local_critic.load_state_dict(self.global_critic.state_dict())
 
             # Normalized advantage calculation
-            advantages = q_values - values
+            advantages = target_values - values
             advantages = (advantages - torch.mean(advantages)) / (torch.std(advantages) + 1e-7)
 
             # Actor Loss computing

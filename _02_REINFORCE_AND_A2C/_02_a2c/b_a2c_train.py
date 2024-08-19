@@ -180,14 +180,14 @@ class A2C:
         values = self.critic(observations).squeeze(dim=-1)
         next_values = self.critic(next_observations).squeeze(dim=-1)
         next_values[dones] = 0.0
-        q_values = rewards.squeeze(dim=-1) + self.gamma * next_values
-        critic_loss = F.mse_loss(q_values.detach(), values)
+        target_values = rewards.squeeze(dim=-1) + self.gamma * next_values
+        critic_loss = F.mse_loss(target_values.detach(), values)
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
         self.critic_optimizer.step()
 
         # Normalized advantage calculation
-        advantages = q_values - values
+        advantages = target_values - values
         advantages = (advantages - torch.mean(advantages)) / (torch.std(advantages) + 1e-7)
 
         # ACTOR UPDATE
