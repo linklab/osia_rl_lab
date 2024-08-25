@@ -114,7 +114,7 @@ class REINFORCE:
                 )
 
             if is_terminated:
-                if self.run_wandb:
+                if self.use_wandb:
                     for _ in range(5):
                         self.log_wandb(
                             validation_episode_reward_avg, episode_reward, policy_loss, avg_mu_v, avg_std_v, avg_action, n_episode
@@ -124,7 +124,9 @@ class REINFORCE:
         total_training_time = time.time() - total_train_start_time
         total_training_time = time.strftime("%H:%M:%S", time.gmtime(total_training_time))
         print("Total Training End : {}".format(total_training_time))
-        self.wandb.finish()
+
+        if self.use_wandb:
+            self.wandb.finish()
 
     def log_wandb(
         self,
@@ -251,14 +253,14 @@ def main() -> None:
     test_env = gym.make(ENV_NAME)
 
     config = {
-        "env_name": ENV_NAME,  # 환경의 이름
-        "max_num_episodes": 200_000,  # 훈련을 위한 최대 에피소드 횟수
-        "learning_rate": 0.0003,  # 학습율
-        "gamma": 0.99,  # 감가율
-        "print_episode_interval": 20,  # Episode 통계 출력에 관한 에피소드 간격
+        "env_name": ENV_NAME,                       # 환경의 이름
+        "max_num_episodes": 200_000,                # 훈련을 위한 최대 에피소드 횟수
+        "learning_rate": 0.0003,                    # 학습율
+        "gamma": 0.99,                              # 감가율
+        "print_episode_interval": 20,               # Episode 통계 출력에 관한 에피소드 간격
         "train_num_episodes_before_next_validation": 100,  # 검증 사이 마다 각 훈련 episode 간격
-        "validation_num_episodes": 3,  # 검증에 수행하는 에피소드 횟수
-        "episode_reward_avg_solved": -150,  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
+        "validation_num_episodes": 3,               # 검증에 수행하는 에피소드 횟수
+        "episode_reward_avg_solved": -150,          # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
     }
 
     use_wandb = True

@@ -24,10 +24,10 @@ class MultiHeadSelfAttention(nn.Module):
         self.num_heads = num_heads  # number of heads
         self.d_k = d_model // num_heads  # dimension of each head
 
-        self.w_q = nn.Linear(d_model, d_model)  # wieght for query
-        self.w_k = nn.Linear(d_model, d_model)  # wieght for key
-        self.w_v = nn.Linear(d_model, d_model)  # wieght for value
-        self.w_o = nn.Linear(d_model, d_model)  # wieght for output
+        self.w_q = nn.Linear(d_model, d_model)  # weight for query
+        self.w_k = nn.Linear(d_model, d_model)  # weight for key
+        self.w_v = nn.Linear(d_model, d_model)  # weight for value
+        self.w_o = nn.Linear(d_model, d_model)  # weight for output
 
     def forward(self, x):
         # x: (batch_size, seq_length, d_model)

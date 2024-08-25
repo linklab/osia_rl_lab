@@ -30,7 +30,7 @@ def master_loop(global_actor, shared_stat, run_wandb, global_lock, config):
             self.global_actor = global_actor
 
             self.shared_stat = shared_stat
-            self.run_wandb = run_wandb
+            self.wandb = run_wandb
             self.test_env = test_env
             self.global_lock = global_lock
 
@@ -38,9 +38,6 @@ def master_loop(global_actor, shared_stat, run_wandb, global_lock, config):
             self.validation_num_episodes = config["validation_num_episodes"]
 
             self.current_time = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S")
-
-            self.last_global_episode_for_validation = 0
-            self.last_global_episode_wandb_log = 0
 
             self.early_stop_model_saver = EarlyStopModelSaver(
                 model_name="ppo_attn",
@@ -51,26 +48,28 @@ def master_loop(global_actor, shared_stat, run_wandb, global_lock, config):
         def validate_loop(self):
             total_train_start_time = time.time()
 
+            validation_episode_reward_avg = 0.0
+            validation_total_value_avg = 0.0
+
             while True:
                 validation_conditions = [
                     self.shared_stat.global_episodes.value != 0,
                     self.shared_stat.global_episodes.value % self.train_num_episodes_before_next_validation == 0,
-                    self.shared_stat.global_episodes.value > self.last_global_episode_for_validation
                 ]
                 if all(validation_conditions):
-                    self.last_global_episode_for_validation = self.shared_stat.global_episodes.value
-
                     self.global_lock.acquire()
-                    validation_episode_reward_lst, validation_episode_reward_avg = self.validate()
+                    validation_episode_reward_lst, validation_episode_reward_avg, validation_total_value_lst, validation_total_value_avg = \
+                        self.validate()
 
                     total_training_time = time.time() - total_train_start_time
-                    total_training_time = time.strftime("%H:%M:%S", time.gmtime(total_training_time))
+                    total_training_time_str = time.strftime("%H:%M:%S", time.gmtime(total_training_time))
 
-                    print(
-                        "[Validation Episode Reward: {0}] Average: {1:.3f}, Elapsed Time: {2}".format(
-                            validation_episode_reward_lst, validation_episode_reward_avg, total_training_time
-                        )
-                    )
+                    print("[Validation Episode Reward: {0}] Average: {1:.3f}".format(
+                        validation_episode_reward_lst, validation_episode_reward_avg
+                    ))
+                    print("[ValidationTotal Value: {0}] Average: {1:.3f}, Elapsed Time: {2}".format(
+                        validation_total_value_lst, validation_total_value_avg, total_training_time_str
+                    ))
 
                     is_terminated = self.early_stop_model_saver.check(
                         validation_episode_reward_avg=validation_episode_reward_avg,
@@ -86,47 +85,45 @@ def master_loop(global_actor, shared_stat, run_wandb, global_lock, config):
 
                     self.global_lock.release()
 
-                wandb_log_conditions = [
-                    self.run_wandb,
-                    self.shared_stat.global_episodes.value > self.last_global_episode_wandb_log,
-                    self.shared_stat.global_episodes.value > self.train_num_episodes_before_next_validation,
-                ]
-                if all(wandb_log_conditions):
-                    self.log_wandb(validation_episode_reward_avg)
-                    self.last_global_episode_wandb_log = self.shared_stat.global_episodes.value
+                if self.wandb:
+                    self.log_wandb(validation_episode_reward_avg, validation_total_value_avg)
 
                 if bool(self.shared_stat.is_terminated.value):
-                    if self.run_wandb:
+                    if self.wandb:
                         for _ in range(5):
-                            self.log_wandb(validation_episode_reward_avg)
+                            self.log_wandb(validation_episode_reward_avg, validation_total_value_avg)
                     break
 
         def validate(self):
-            episode_rewards = np.zeros(self.validation_num_episodes)
+            episode_reward_lst = np.zeros(shape=(self.validation_num_episodes,), dtype=float)
+            total_value_lst = np.zeros(shape=(self.validation_num_episodes,), dtype=float)
 
             for i in range(self.validation_num_episodes):
-                observation, info = self.test_env.reset()
                 episode_reward = 0
+
+                observation, info = self.test_env.reset()
 
                 done = False
 
                 while not done:
                     action = self.global_actor.get_action(observation, action_mask=info["ACTION_MASK"], exploration=False)
+
                     next_observation, reward, terminated, truncated, info = self.test_env.step(action)
+
                     episode_reward += reward
                     observation = next_observation
                     done = terminated or truncated
 
-                episode_rewards[i] = episode_reward
+                episode_reward_lst[i] = episode_reward
+                total_value_lst[i] = info["VALUE_ALLOCATED"]
 
-            return episode_rewards, np.average(episode_rewards)
+            return episode_reward_lst, np.average(episode_reward_lst), total_value_lst, np.average(total_value_lst)
 
-        def log_wandb(self, validation_episode_reward_avg):
-            self.run_wandb.log(
+        def log_wandb(self, validation_episode_reward_avg, validation_total_value_avg):
+            self.wandb.log(
                 {
-                    "[VALIDATION] Mean Episode Reward ({0} Episodes)".format(
-                        self.validation_num_episodes
-                    ): validation_episode_reward_avg,
+                    "[VALIDATION] Mean Episode Reward ({0} Episodes)".format(self.validation_num_episodes): validation_episode_reward_avg,
+                    "[VALIDATION] Mean Total Value ({0} Episodes)".format(self.validation_num_episodes): validation_total_value_avg,
                     "[TRAIN] Episode Reward": self.shared_stat.last_episode_reward.value,
                     "[TRAIN] Policy Loss": self.shared_stat.last_policy_loss.value,
                     "[TRAIN] Critic Loss": self.shared_stat.last_critic_loss.value,
@@ -366,9 +363,9 @@ class PPO:
 
         if use_wandb:
             current_time = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S")
-            self.run_wandb = wandb.init(project="PPO_{0}".format(ENV_NAME), name=current_time, config=config)
+            self.wandb = wandb.init(project="PPO_{0}".format(ENV_NAME), name=current_time, config=config)
         else:
-            self.run_wandb = None
+            self.wandb = None
 
         self.worker_processes = []
         self.master_process = None
@@ -383,7 +380,7 @@ class PPO:
             self.worker_processes.append(worker_process)
 
         master_process = mp.Process(
-            target=master_loop, args=(self.global_actor, self.shared_stat, self.run_wandb, self.global_lock, self.config)
+            target=master_loop, args=(self.global_actor, self.shared_stat, self.wandb, self.global_lock, self.config)
         )
         master_process.start()
         print(">>> Master Process: {0} Started!".format(master_process.pid))
@@ -397,8 +394,8 @@ class PPO:
         master_process.join()
         print(">>> Master Process: {0} Joined!".format(master_process.pid))
 
-        if self.use_wandb and self.run_wandb:
-            self.run_wandb.finish()
+        if self.use_wandb:
+            self.wandb.finish()
 
 
 def main():
@@ -408,17 +405,17 @@ def main():
 
     ppo_config = {
         "num_workers": 4,                                   # 동시 수행 Worker Process 수
-        "max_num_episodes": 200_000,                        # 훈련을 위한 최대 에피소드 횟수
+        "max_num_episodes": 15_000 * NUM_ITEMS,               # 훈련을 위한 최대 에피소드 횟수
         "ppo_epochs": 10,                                   # PPO 내부 업데이트 횟수
         "ppo_clip_coefficient": 0.2,                        # PPO Ratio Clip Coefficient
         "batch_size": 256,                                  # 훈련시 배치에서 한번에 가져오는 랜덤 배치 사이즈
-        "learning_rate": 0.0003,                            # 학습율
+        "learning_rate": 0.0001,                            # 학습율
         "gamma": 0.99,                                      # 감가율
         "entropy_beta": 0.03,                               # 엔트로피 가중치
-        "print_episode_interval": 20,                       # Episode 통계 출력에 관한 에피소드 간격
-        "train_num_episodes_before_next_validation": 500,   # 검증 사이 마다 각 훈련 episode 간격
+        "print_episode_interval": 10,                       # Episode 통계 출력에 관한 에피소드 간격
+        "train_num_episodes_before_next_validation": 1000,  # 검증 사이 마다 각 훈련 episode 간격
         "validation_num_episodes": 100,                     # 검증에 수행하는 에피소드 횟수
-        "early_stop_patience": NUM_ITEMS * 3,               # episode_reward가 개선될 때까지 기다리는 기간
+        "early_stop_patience": NUM_ITEMS * 10,              # episode_reward가 개선될 때까지 기다리는 기간
     }
 
     use_wandb = True

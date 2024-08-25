@@ -26,9 +26,9 @@ class A2C:
         self.current_time = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S")
 
         if use_wandb:
-            self.run_wandb = wandb.init(project="A2C_{0}".format(self.env_name), name=self.current_time, config=config)
+            self.wandb = wandb.init(project="A2C_{0}".format(self.env_name), name=self.current_time, config=config)
         else:
-            self.run_wandb = None
+            self.wandb = None
 
         self.max_num_episodes = config["max_num_episodes"]
         self.batch_size = config["batch_size"]
@@ -125,7 +125,7 @@ class A2C:
                 )
 
             if is_terminated:
-                if self.run_wandb:
+                if self.wandb:
                     for _ in range(5):
                         self.log_wandb(
                             validation_episode_reward_avg,
@@ -142,7 +142,8 @@ class A2C:
         total_training_time = time.time() - total_train_start_time
         total_training_time = time.strftime("%H:%M:%S", time.gmtime(total_training_time))
         print("Total Training End : {}".format(total_training_time))
-        self.run_wandb.finish()
+        if self.use_wandb:
+            self.wandb.finish()
 
     def log_wandb(
         self,
@@ -155,7 +156,7 @@ class A2C:
         avg_action: float,
         n_episode: float,
     ) -> None:
-        self.run_wandb.log(
+        self.wandb.log(
             {
                 "[VALIDATION] Mean Episode Reward ({0} Episodes)".format(
                     self.validation_num_episodes

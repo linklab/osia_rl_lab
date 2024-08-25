@@ -149,7 +149,8 @@ class DQN:
         total_training_time = time.time() - total_train_start_time
         total_training_time = time.strftime("%H:%M:%S", time.gmtime(total_training_time))
         print("Total Training End : {}".format(total_training_time))
-        self.wandb.finish()
+        if self.use_wandb:
+            self.wandb.finish()
 
     def train(self) -> float:
         self.training_time_steps += 1

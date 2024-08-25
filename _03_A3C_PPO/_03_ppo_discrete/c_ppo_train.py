@@ -29,7 +29,7 @@ def master_loop(global_actor, shared_stat, run_wandb, global_lock, config):
             self.global_actor = global_actor
 
             self.shared_stat = shared_stat
-            self.run_wandb = run_wandb
+            self.wandb = run_wandb
             self.test_env = test_env
             self.global_lock = global_lock
 
@@ -78,7 +78,7 @@ def master_loop(global_actor, shared_stat, run_wandb, global_lock, config):
                     self.global_lock.release()
 
                 wandb_log_conditions = [
-                    self.run_wandb,
+                    self.wandb,
                     self.shared_stat.global_episodes.value > self.last_global_episode_wandb_log,
                     self.shared_stat.global_episodes.value > self.train_num_episodes_before_next_validation,
                 ]
@@ -87,7 +87,7 @@ def master_loop(global_actor, shared_stat, run_wandb, global_lock, config):
                     self.last_global_episode_wandb_log = self.shared_stat.global_episodes.value
 
                 if bool(self.shared_stat.is_terminated.value):
-                    if self.run_wandb:
+                    if self.wandb:
                         for _ in range(5):
                             self.log_wandb(validation_episode_reward_avg)
                     break
@@ -113,7 +113,7 @@ def master_loop(global_actor, shared_stat, run_wandb, global_lock, config):
             return episode_rewards, np.average(episode_rewards)
 
         def log_wandb(self, validation_episode_reward_avg):
-            self.run_wandb.log(
+            self.wandb.log(
                 {
                     "[VALIDATION] Mean Episode Reward ({0} Episodes)".format(
                         self.validation_num_episodes
@@ -352,9 +352,9 @@ class PPO:
 
         if use_wandb:
             current_time = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S")
-            self.run_wandb = wandb.init(project="PPO_{0}".format(config["env_name"]), name=current_time, config=config)
+            self.wandb = wandb.init(project="PPO_{0}".format(config["env_name"]), name=current_time, config=config)
         else:
-            self.run_wandb = None
+            self.wandb = None
 
         self.worker_processes = []
         self.master_process = None
@@ -369,7 +369,7 @@ class PPO:
             self.worker_processes.append(worker_process)
 
         master_process = mp.Process(
-            target=master_loop, args=(self.global_actor, self.shared_stat, self.run_wandb, self.global_lock, self.config)
+            target=master_loop, args=(self.global_actor, self.shared_stat, self.wandb, self.global_lock, self.config)
         )
         master_process.start()
         print(">>> Master Process: {0} Started!".format(master_process.pid))
@@ -383,8 +383,8 @@ class PPO:
         master_process.join()
         print(">>> Master Process: {0} Joined!".format(master_process.pid))
 
-        if self.use_wandb and self.run_wandb:
-            self.run_wandb.finish()
+        if self.use_wandb:
+            self.wandb.finish()
 
 
 def main():
