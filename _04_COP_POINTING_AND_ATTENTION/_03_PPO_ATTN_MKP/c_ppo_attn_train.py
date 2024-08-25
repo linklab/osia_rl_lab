@@ -236,7 +236,7 @@ def worker_loop(process_id, global_actor, global_critic, shared_stat, global_loc
                         "Episode Reward: {:>6.4f},".format(episode_reward),
                         "Police Loss: {:>7.3f},".format(policy_loss),
                         "Critic Loss: {:>7.3f},".format(critic_loss),
-                        "Training Steps: {:5,},".format(self.training_time_steps),
+                        "Training Steps: {:5,}".format(self.training_time_steps),
                     )
 
                 if bool(self.shared_stat.is_terminated.value):
