@@ -20,17 +20,17 @@ from _04_COP_POINTING_AND_ATTENTION._01_COMMON.a_common import env_config, ENV_N
 from _04_COP_POINTING_AND_ATTENTION._01_COMMON.b_mkp_env import MkpEnv
 
 
-def master_loop(global_actor, shared_stat, run_wandb, global_lock, config):
+def master_loop(global_actor, shared_stat, wandb, global_lock, config):
     test_env = MkpEnv(env_config=env_config)
 
     class PPOMaster:
-        def __init__(self, global_actor, shared_stat, run_wandb, test_env, global_lock, config):
+        def __init__(self, global_actor, shared_stat, wandb, test_env, global_lock, config):
             self.is_terminated = False
 
             self.global_actor = global_actor
 
             self.shared_stat = shared_stat
-            self.wandb = run_wandb
+            self.wandb = wandb
             self.test_env = test_env
             self.global_lock = global_lock
 
@@ -143,7 +143,7 @@ def master_loop(global_actor, shared_stat, run_wandb, global_lock, config):
     master = PPOMaster(
         global_actor=global_actor,
         shared_stat=shared_stat,
-        run_wandb=run_wandb,
+        wandb=wandb,
         test_env=test_env,
         global_lock=global_lock,
         config=config,
@@ -361,7 +361,7 @@ class PPO:
         self.global_lock = mp.Lock()
         self.shared_stat = SharedStat()
 
-        if use_wandb:
+        if self.use_wandb:
             current_time = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S")
             self.wandb = wandb.init(project="PPO_{0}".format(ENV_NAME), name=current_time, config=config)
         else:
@@ -373,7 +373,8 @@ class PPO:
     def train_loop(self):
         for i in range(self.num_workers):
             worker_process = mp.Process(
-                target=worker_loop, args=(i, self.global_actor, self.global_critic, self.shared_stat, self.global_lock, self.config)
+                target=worker_loop,
+                args=(i, self.global_actor, self.global_critic, self.shared_stat, self.global_lock, self.config)
             )
             worker_process.start()
             print(">>> Worker Process: {0} Started!".format(worker_process.pid))
@@ -394,7 +395,7 @@ class PPO:
         master_process.join()
         print(">>> Master Process: {0} Joined!".format(master_process.pid))
 
-        if self.use_wandb:
+        if self.wandb:
             self.wandb.finish()
 
 
