@@ -12,8 +12,8 @@ import torch.multiprocessing as mp
 import torch.nn.functional as F
 import wandb
 from torch.distributions import Normal
-from torch.optim import Adam
 
+from a_shared_adam import SharedAdam
 from b_actor_and_critic import MODEL_DIR, Actor, Buffer, Critic, Transition
 
 
@@ -148,9 +148,8 @@ def master_loop(global_actor, shared_stat, run_wandb, global_lock, config):
 
     master.validate_loop()
 
-
 def worker_loop(
-        process_id, global_actor, global_critic, shared_stat, global_lock, config):
+        process_id, global_actor, global_critic, global_actor_optimizer, global_critic_optimizer, shared_stat, global_lock, config):
     env_name = config["env_name"]
     env = gym.make(env_name)
 
@@ -160,6 +159,8 @@ def worker_loop(
             worker_id,
             global_actor,
             global_critic,
+            global_actor_optimizer,
+            global_critic_optimizer,
             shared_stat,
             env,
             global_lock,
@@ -179,8 +180,8 @@ def worker_loop(
             self.local_critic = copy.deepcopy(global_critic)
             self.local_critic.load_state_dict(global_critic.state_dict())
 
-            self.local_actor_optimizer = Adam(self.local_actor.parameters(), lr=config["learning_rate"])
-            self.local_critic_optimizer = Adam(self.local_critic.parameters(), lr=config["learning_rate"])
+            self.global_actor_optimizer = global_actor_optimizer
+            self.global_critic_optimizer = global_critic_optimizer
 
             self.global_lock = global_lock
 
@@ -261,10 +262,6 @@ def worker_loop(
 
             self.global_lock.acquire()
 
-            self.local_critic.load_state_dict(self.global_critic.state_dict())
-            self.local_actor.load_state_dict(self.global_actor.state_dict())
-            self.global_lock.release()
-
             values = self.local_critic(observations).squeeze(dim=-1)
             next_values = self.local_critic(next_observations).squeeze(dim=-1)
             next_values[dones] = 0.0
@@ -282,9 +279,14 @@ def worker_loop(
 
                 # CRITIC UPDATE
                 critic_loss = F.mse_loss(target_values.detach(), values)
-                self.local_critic_optimizer.zero_grad()
+                self.global_critic_optimizer.zero_grad()
+                for local_param in self.local_critic.parameters():
+                    local_param.grad = None
                 critic_loss.backward()
-                self.local_critic_optimizer.step()
+                for local_param, global_param in zip(self.local_critic.parameters(), self.global_critic.parameters()):
+                    global_param.grad = local_param.grad
+                self.global_critic_optimizer.step()
+                self.local_critic.load_state_dict(self.global_critic.state_dict())
 
                 # Actor Loss computing
                 mu, std = self.local_actor.forward(observations)
@@ -305,14 +307,15 @@ def worker_loop(
                 actor_loss = -1.0 * ratio_advantages_sum - 1.0 * entropy_sum * self.entropy_beta
 
                 # Actor Update
-                self.local_actor_optimizer.zero_grad()
+                self.global_actor_optimizer.zero_grad()
+                for local_param in self.local_actor.parameters():
+                    local_param.grad = None
                 actor_loss.backward()
-                self.local_actor_optimizer.step()
+                for local_param, global_param in zip(self.local_actor.parameters(), self.global_actor.parameters()):
+                    global_param.grad = local_param.grad
+                self.global_actor_optimizer.step()
+                self.local_actor.load_state_dict(self.global_actor.state_dict())
 
-            # GLOBAL MODEL UPDATE
-            self.global_lock.acquire()
-            self.global_actor.load_state_dict(self.local_actor.state_dict())
-            self.global_critic.load_state_dict(self.local_critic.state_dict())
             self.global_lock.release()
 
             return (
@@ -327,6 +330,8 @@ def worker_loop(
         worker_id=process_id,
         global_actor=global_actor,
         global_critic=global_critic,
+        global_actor_optimizer=global_actor_optimizer,
+        global_critic_optimizer=global_critic_optimizer,
         shared_stat=shared_stat,
         env=env,
         global_lock=global_lock,
@@ -362,6 +367,9 @@ class PPO:
         self.global_actor = Actor(n_features=3, n_actions=1).share_memory()
         self.global_critic = Critic(n_features=3).share_memory()
 
+        self.global_actor_optimizer = SharedAdam(self.global_actor.parameters(), lr=config["learning_rate"])
+        self.global_critic_optimizer = SharedAdam(self.global_critic.parameters(), lr=config["learning_rate"])
+
         self.global_lock = mp.Lock()
         self.shared_stat = SharedStat()
 
@@ -382,6 +390,8 @@ class PPO:
                     i,
                     self.global_actor,
                     self.global_critic,
+                    self.global_actor_optimizer,
+                    self.global_critic_optimizer,
                     self.shared_stat,
                     self.global_lock,
                     self.config,
