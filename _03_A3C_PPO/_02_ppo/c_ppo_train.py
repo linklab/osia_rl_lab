@@ -12,6 +12,7 @@ import torch.multiprocessing as mp
 import torch.nn.functional as F
 import wandb
 from torch.distributions import Normal
+from torch.optim import Adam
 
 from a_shared_adam import SharedAdam
 from b_actor_and_critic import MODEL_DIR, Actor, Buffer, Critic, Transition
@@ -180,6 +181,9 @@ def worker_loop(
             self.local_critic = copy.deepcopy(global_critic)
             self.local_critic.load_state_dict(global_critic.state_dict())
 
+            self.local_actor_optimizer = Adam(self.local_actor.parameters(), lr=config["learning_rate"])
+            self.local_critic_optimizer = Adam(self.local_critic.parameters(), lr=config["learning_rate"])
+
             self.global_actor_optimizer = global_actor_optimizer
             self.global_critic_optimizer = global_critic_optimizer
 
@@ -260,7 +264,23 @@ def worker_loop(
             # Getting values from buffer
             observations, actions, next_observations, rewards, dones = self.buffer.get()
 
-            self.global_lock.acquire()
+            with self.global_lock:
+                self.local_critic.load_state_dict(self.global_critic.state_dict())
+                self.local_actor.load_state_dict(self.global_actor.state_dict())
+
+                # Resetting gradients of global optimizers
+                self.global_actor_optimizer.zero_grad()
+                for local_param in self.local_actor.parameters():
+                    local_param.grad = None
+
+                self.global_critic_optimizer.zero_grad()
+                for local_param in self.local_critic.parameters():
+                    local_param.grad = None
+
+            # Save initial local parameters (using deepcopy)
+            initial_local_critic_params = copy.deepcopy(self.local_critic.state_dict())
+            initial_local_actor_params = copy.deepcopy(self.local_actor.state_dict())
+
 
             values = self.local_critic(observations).squeeze(dim=-1)
             next_values = self.local_critic(next_observations).squeeze(dim=-1)
@@ -279,14 +299,10 @@ def worker_loop(
 
                 # CRITIC UPDATE
                 critic_loss = F.mse_loss(target_values.detach(), values)
-                self.global_critic_optimizer.zero_grad()
-                for local_param in self.local_critic.parameters():
-                    local_param.grad = None
+
+                self.local_critic_optimizer.zero_grad()
                 critic_loss.backward()
-                for local_param, global_param in zip(self.local_critic.parameters(), self.global_critic.parameters()):
-                    global_param.grad = local_param.grad
-                self.global_critic_optimizer.step()
-                self.local_critic.load_state_dict(self.global_critic.state_dict())
+                self.local_critic_optimizer.step()
 
                 # Actor Loss computing
                 mu, std = self.local_actor.forward(observations)
@@ -307,16 +323,32 @@ def worker_loop(
                 actor_loss = -1.0 * ratio_advantages_sum - 1.0 * entropy_sum * self.entropy_beta
 
                 # Actor Update
-                self.global_actor_optimizer.zero_grad()
-                for local_param in self.local_actor.parameters():
-                    local_param.grad = None
+                self.local_actor_optimizer.zero_grad()
                 actor_loss.backward()
-                for local_param, global_param in zip(self.local_actor.parameters(), self.global_actor.parameters()):
-                    global_param.grad = local_param.grad
-                self.global_actor_optimizer.step()
-                self.local_actor.load_state_dict(self.global_actor.state_dict())
+                self.local_actor_optimizer.step()
 
-            self.global_lock.release()
+            # Calculate the difference between updated and initial local parameters #change name of the variable
+            delta_local_critic_grads = {
+                name: (self.local_critic.state_dict()[name] - initial_local_critic_params[name]) / self.learning_rate
+                for name in self.local_critic.state_dict()}
+
+            delta_local_actor_grads = {
+                name: (self.local_actor.state_dict()[name] - initial_local_actor_params[name]) / self.learning_rate
+                for name in self.local_actor.state_dict()}
+
+            with self.global_lock:
+                # Updating global model parameters
+                for name, global_param in self.global_critic.named_parameters():
+                    global_param.data += delta_local_critic_grads[name] * self.learning_rate
+                # self.global_critic_optimizer.step()
+
+                for name, global_param in self.global_actor.named_parameters():
+                    global_param.data += delta_local_actor_grads[name] * self.learning_rate
+                # self.global_actor_optimizer.step()
+
+                # Loading updated parameters into local models
+                self.local_critic.load_state_dict(self.global_critic.state_dict())
+                self.local_actor.load_state_dict(self.global_actor.state_dict())
 
             return (
                 actor_loss.item(),
