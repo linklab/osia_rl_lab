@@ -347,8 +347,8 @@ def worker_loop(
                 # self.global_actor_optimizer.step()
 
                 # Loading updated parameters into local models
-                self.local_critic.load_state_dict(self.global_critic.state_dict())
-                self.local_actor.load_state_dict(self.global_actor.state_dict())
+                # self.local_critic.load_state_dict(self.global_critic.state_dict())
+                # self.local_actor.load_state_dict(self.global_actor.state_dict())
 
             return (
                 actor_loss.item(),
