@@ -1,4 +1,4 @@
-# https://gymnasium.farama.org/environments/classic_control/pendulum/
+# https://gymnasium.farama.org/environments/box2d/bipedal_walker/
 import copy
 import os
 import time
@@ -104,7 +104,7 @@ def master_loop(global_actor, shared_stat, run_wandb, global_lock, config):
 
                 while not done:
                     action = self.global_actor.get_action(observation, exploration=False)
-                    next_observation, reward, terminated, truncated, _ = self.test_env.step(action * 2)
+                    next_observation, reward, terminated, truncated, _ = self.test_env.step(action)
                     episode_reward += reward
                     observation = next_observation
                     done = terminated or truncated
@@ -131,11 +131,11 @@ def master_loop(global_actor, shared_stat, run_wandb, global_lock, config):
             )
 
         def model_save(self, validation_episode_reward_avg: float) -> None:
-            filename = "ppo_{0}_{1:4.1f}_{2}.pth".format(self.env_name, validation_episode_reward_avg, self.current_time)
+            filename = "bipedal_walker_{0}_{1:4.1f}_{2}.pth".format(self.env_name, validation_episode_reward_avg, self.current_time)
             torch.save(self.global_actor.state_dict(), os.path.join(MODEL_DIR, filename))
 
             copyfile(
-                src=os.path.join(MODEL_DIR, filename), dst=os.path.join(MODEL_DIR, "ppo_{0}_latest.pth".format(self.env_name))
+                src=os.path.join(MODEL_DIR, filename), dst=os.path.join(MODEL_DIR, "bipedal_walker_{0}_latest.pth".format(self.env_name))
             )
 
     master = PPOMaster(
@@ -221,7 +221,7 @@ def worker_loop(
                     self.shared_stat.global_time_steps.value += 1
 
                     action = self.local_actor.get_action(observation)
-                    next_observation, reward, terminated, truncated, _ = self.env.step(action * 2)
+                    next_observation, reward, terminated, truncated, _ = self.env.step(action)
 
                     episode_reward += reward
 
@@ -311,9 +311,9 @@ def worker_loop(
 
                 ratio = torch.exp(action_log_probs - old_action_log_probs.detach())
 
-                ratio_advantages = ratio * advantages.detach()
+                ratio_advantages = ratio * advantages.unsqueeze(-1).detach()
                 clipped_ratio_advantages = (
-                    torch.clamp(ratio, 1 - self.ppo_clip_coefficient, 1 + self.ppo_clip_coefficient) * advantages.detach()
+                    torch.clamp(ratio, 1 - self.ppo_clip_coefficient, 1 + self.ppo_clip_coefficient) * advantages.unsqueeze(-1).detach()
                 )
                 ratio_advantages_sum = torch.min(ratio_advantages, clipped_ratio_advantages).sum()
 
@@ -397,8 +397,8 @@ class PPO:
         self.num_workers = min(config["num_workers"], mp.cpu_count() - 1)
 
         # Initialize global models and optimizers
-        self.global_actor = Actor(n_features=3, n_actions=1).share_memory()
-        self.global_critic = Critic(n_features=3).share_memory()
+        self.global_actor = Actor(n_features=24, n_actions=4).share_memory()
+        self.global_critic = Critic(n_features=24).share_memory()
 
         self.global_actor_optimizer = SharedAdam(self.global_actor.parameters(), lr=config["learning_rate"])
         self.global_critic_optimizer = SharedAdam(self.global_critic.parameters(), lr=config["learning_rate"])
@@ -455,22 +455,22 @@ class PPO:
 
 def main() -> None:
     print("TORCH VERSION:", torch.__version__)
-    ENV_NAME = "Pendulum-v1"
+    ENV_NAME = "BipedalWalker-v3"
 
     config = {
         "env_name": ENV_NAME,                               # 환경의 이름
         "num_workers": 4,                                   # 동시 수행 Worker Process 수
-        "max_num_episodes": 200_000,                        # 훈련을 위한 최대 에피소드 횟수
+        "max_num_episodes": 10_000,                        # 훈련을 위한 최대 에피소드 횟수
         "ppo_epochs": 10,                                   # PPO 내부 업데이트 횟수
         "ppo_clip_coefficient": 0.2,                        # PPO Ratio Clip Coefficient
         "batch_size": 256,                                  # 훈련시 배치에서 한번에 가져오는 랜덤 배치 사이즈
         "learning_rate": 0.0003,                            # 학습율
         "gamma": 0.99,                                      # 감가율
-        "entropy_beta": 0.03,                               # 엔트로피 가중치
-        "print_episode_interval": 20,                       # Episode 통계 출력에 관한 에피소드 간격
-        "train_num_episodes_before_next_validation": 100,   # 검증 사이 마다 각 훈련 episode 간격
+        "entropy_beta": 0.01,                               # 엔트로피 가중치
+        "print_episode_interval": 10,                       # Episode 통계 출력에 관한 에피소드 간격
+        "train_num_episodes_before_next_validation": 50,   # 검증 사이 마다 각 훈련 episode 간격
         "validation_num_episodes": 3,                       # 검증에 수행하는 에피소드 횟수
-        "episode_reward_avg_solved": -100,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
+        "episode_reward_avg_solved": 300,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
     }
 
     use_wandb = True
