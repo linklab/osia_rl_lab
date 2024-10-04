@@ -55,7 +55,6 @@ class DQN:
         self.replay_buffer = ReplayBuffer(self.replay_buffer_size)
 
         self.time_steps = 0
-        self.total_time_steps = 0
         self.training_time_steps = 0
 
     def epsilon_scheduled(self, current_episode: int) -> float:
@@ -84,7 +83,6 @@ class DQN:
 
             while not done:
                 self.time_steps += 1
-                self.total_time_steps += 1
 
                 action = self.q.get_action(observation, epsilon)
 
@@ -98,7 +96,7 @@ class DQN:
                 observation = next_observation
                 done = terminated or truncated
 
-                if self.total_time_steps % self.steps_between_train == 0 and self.time_steps > self.batch_size:
+                if self.time_steps % self.steps_between_train == 0 and self.time_steps > self.batch_size:
                     loss = self.train()
 
             if n_episode % self.print_episode_interval == 0:
