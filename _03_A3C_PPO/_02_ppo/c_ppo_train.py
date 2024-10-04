@@ -328,7 +328,6 @@ def worker_loop(
                 self.local_actor_optimizer.step()
 
             # Calculate the difference between updated and initial local parameters #change name of the variable
-            # нужно поменять местами вычитание и использовать step()
             delta_local_critic_grads = {
                 name: (initial_local_critic_params[name] - self.local_critic.state_dict()[name]) / self.learning_rate
                 for name in self.local_critic.state_dict()}
@@ -340,11 +339,11 @@ def worker_loop(
             with self.global_lock:
                 # Updating global model parameters
                 for name, global_param in self.global_critic.named_parameters():
-                    global_param.grad = delta_local_critic_grads[name] * self.learning_rate
+                    global_param.grad = delta_local_critic_grads[name]
                 self.global_critic_optimizer.step()
 
                 for name, global_param in self.global_actor.named_parameters():
-                    global_param.grad = delta_local_actor_grads[name] * self.learning_rate
+                    global_param.grad = delta_local_actor_grads[name]
                 self.global_actor_optimizer.step()
 
                 # Loading updated parameters into local models

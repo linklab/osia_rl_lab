@@ -340,11 +340,11 @@ def worker_loop(
             with self.global_lock:
                 # Updating global model parameters
                 for name, global_param in self.global_critic.named_parameters():
-                    global_param.grad = delta_local_critic_grads[name] * self.learning_rate
+                    global_param.grad = delta_local_critic_grads[name]
                 self.global_critic_optimizer.step()
 
                 for name, global_param in self.global_actor.named_parameters():
-                    global_param.grad = delta_local_actor_grads[name] * self.learning_rate
+                    global_param.grad = delta_local_actor_grads[name]
                 self.global_actor_optimizer.step()
 
                 # Loading updated parameters into local models
@@ -459,18 +459,18 @@ def main() -> None:
 
     config = {
         "env_name": ENV_NAME,                               # 환경의 이름
-        "num_workers": 4,                                   # 동시 수행 Worker Process 수
+        "num_workers": 1,                                   # 동시 수행 Worker Process 수
         "max_num_episodes": 10_000,                        # 훈련을 위한 최대 에피소드 횟수
         "ppo_epochs": 10,                                   # PPO 내부 업데이트 횟수
         "ppo_clip_coefficient": 0.2,                        # PPO Ratio Clip Coefficient
-        "batch_size": 256,                                  # 훈련시 배치에서 한번에 가져오는 랜덤 배치 사이즈
+        "batch_size": 128,                                  # 훈련시 배치에서 한번에 가져오는 랜덤 배치 사이즈
         "learning_rate": 0.0003,                            # 학습율
         "gamma": 0.99,                                      # 감가율
         "entropy_beta": 0.01,                               # 엔트로피 가중치
         "print_episode_interval": 10,                       # Episode 통계 출력에 관한 에피소드 간격
         "train_num_episodes_before_next_validation": 50,   # 검증 사이 마다 각 훈련 episode 간격
         "validation_num_episodes": 3,                       # 검증에 수행하는 에피소드 횟수
-        "episode_reward_avg_solved": 300,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
+        "episode_reward_avg_solved": 240,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
     }
 
     use_wandb = True
