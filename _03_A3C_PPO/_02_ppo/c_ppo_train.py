@@ -327,28 +327,26 @@ def worker_loop(
                 actor_loss.backward()
                 self.local_actor_optimizer.step()
 
-            # Calculate the difference between updated and initial local parameters #change name of the variable
+            # Calculate the difference between updated and initial local parameters
             delta_local_critic_grads = {
-                name: (self.local_critic.state_dict()[name] - initial_local_critic_params[name]) / self.learning_rate
+                name: (initial_local_critic_params[name] - self.local_critic.state_dict()[name]) / self.learning_rate
                 for name in self.local_critic.state_dict()}
 
             delta_local_actor_grads = {
-                name: (self.local_actor.state_dict()[name] - initial_local_actor_params[name]) / self.learning_rate
+                name: (initial_local_actor_params[name] - self.local_actor.state_dict()[name]) / self.learning_rate
                 for name in self.local_actor.state_dict()}
 
+            # Updating global model parameters
             with self.global_lock:
-                # Updating global model parameters
+                self.global_critic_optimizer.zero_grad()
                 for name, global_param in self.global_critic.named_parameters():
-                    global_param.data += delta_local_critic_grads[name] * self.learning_rate
-                # self.global_critic_optimizer.step()
+                    global_param.grad = delta_local_critic_grads[name]
+                self.global_critic_optimizer.step()
 
+                self.global_actor_optimizer.zero_grad()
                 for name, global_param in self.global_actor.named_parameters():
-                    global_param.data += delta_local_actor_grads[name] * self.learning_rate
-                # self.global_actor_optimizer.step()
-
-                # Loading updated parameters into local models
-                # self.local_critic.load_state_dict(self.global_critic.state_dict())
-                # self.local_actor.load_state_dict(self.global_actor.state_dict())
+                    global_param.grad = delta_local_actor_grads[name]
+                self.global_actor_optimizer.step()
 
             return (
                 actor_loss.item(),
@@ -458,7 +456,7 @@ def main() -> None:
 
     config = {
         "env_name": ENV_NAME,                               # 환경의 이름
-        "num_workers": 4,                                   # 동시 수행 Worker Process 수
+        "num_workers": 1,                                   # 동시 수행 Worker Process 수
         "max_num_episodes": 200_000,                        # 훈련을 위한 최대 에피소드 횟수
         "ppo_epochs": 10,                                   # PPO 내부 업데이트 횟수
         "ppo_clip_coefficient": 0.2,                        # PPO Ratio Clip Coefficient

@@ -320,26 +320,24 @@ def worker_loop(process_id, global_actor, global_critic, global_actor_optimizer,
 
             # Calculate the difference between updated and initial local parameters
             delta_local_critic_grads = {
-                name: (self.local_critic.state_dict()[name] - initial_local_critic_params[name]) / self.learning_rate
+                name: (initial_local_critic_params[name] - self.local_critic.state_dict()[name]) / self.learning_rate
                 for name in self.local_critic.state_dict()}
 
             delta_local_actor_grads = {
-                name: (self.local_actor.state_dict()[name] - initial_local_actor_params[name]) / self.learning_rate
+                name: (initial_local_actor_params[name] - self.local_actor.state_dict()[name]) / self.learning_rate
                 for name in self.local_actor.state_dict()}
 
+            # Updating global model parameters
             with self.global_lock:
-                # Updating global model parameters
+                self.global_critic_optimizer.zero_grad()
                 for name, global_param in self.global_critic.named_parameters():
-                    global_param.data += delta_local_critic_grads[name] * self.learning_rate
-                # self.global_critic_optimizer.step()
+                    global_param.grad = delta_local_critic_grads[name]
+                self.global_critic_optimizer.step()
 
+                self.global_actor_optimizer.zero_grad()
                 for name, global_param in self.global_actor.named_parameters():
-                    global_param.data += delta_local_actor_grads[name] * self.learning_rate
-                # self.global_actor_optimizer.step()
-
-                # Loading updated parameters into local models
-                # self.local_critic.load_state_dict(self.global_critic.state_dict())
-                # self.local_actor.load_state_dict(self.global_actor.state_dict())
+                    global_param.grad = delta_local_actor_grads[name]
+                self.global_actor_optimizer.step()
 
             return (
                 actor_loss.item(),
