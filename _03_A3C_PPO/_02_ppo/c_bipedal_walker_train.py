@@ -15,7 +15,7 @@ from torch.distributions import Normal
 from torch.optim import Adam
 
 from a_shared_adam import SharedAdam
-from b_actor_and_critic import MODEL_DIR, Actor, Buffer, Critic, Transition
+from b_bipedal_walker_actor_and_critic import MODEL_DIR, Actor, Buffer, Critic, Transition
 
 
 def master_loop(global_actor, shared_stat, run_wandb, global_lock, config):
@@ -459,7 +459,7 @@ def main() -> None:
 
     config = {
         "env_name": ENV_NAME,                               # 환경의 이름
-        "num_workers": 1,                                   # 동시 수행 Worker Process 수
+        "num_workers": 4,                                   # 동시 수행 Worker Process 수
         "max_num_episodes": 10_000,                        # 훈련을 위한 최대 에피소드 횟수
         "ppo_epochs": 10,                                   # PPO 내부 업데이트 횟수
         "ppo_clip_coefficient": 0.2,                        # PPO Ratio Clip Coefficient

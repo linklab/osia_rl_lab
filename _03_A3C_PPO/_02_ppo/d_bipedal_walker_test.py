@@ -3,7 +3,7 @@ import os
 
 import gymnasium as gym
 import torch
-from b_actor_and_critic import MODEL_DIR, Actor
+from b_bipedal_walker_actor_and_critic import MODEL_DIR, Actor
 
 
 def test(env: gym.Env, actor: Actor, num_episodes: int) -> None:
