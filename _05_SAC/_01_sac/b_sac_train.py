@@ -46,7 +46,7 @@ class SAC:
         n_features = env.observation_space.shape[0]
         n_actions = env.action_space.shape[0]
 
-        self.policy = GaussianPolicy(n_features=n_features, n_actions=n_actions)
+        self.policy = GaussianPolicy(n_features=n_features, n_actions=n_actions, action_space=env.action_space)
         self.policy_optimizer = optim.Adam(self.policy.parameters(), lr=self.learning_rate)
 
         self.q_network_1 = QNetwork(n_features=n_features, n_actions=n_actions)
@@ -303,6 +303,7 @@ class SAC:
 def main() -> None:
     print("TORCH VERSION:", torch.__version__)
     ENV_NAME = "Ant-v5"
+    # ENV_NAME = "Pendulum-v1"
 
     # env
     env = gym.make(ENV_NAME)

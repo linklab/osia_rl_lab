@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import nn
-from torch.distributions import Normal
+from torch.distributions import Normal, TransformedDistribution, TanhTransform
 
 CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
 MODEL_DIR = os.path.join(CURRENT_PATH, "models")
@@ -38,7 +38,12 @@ class GaussianPolicy(nn.Module):
         else:
             self.action_scale = torch.FloatTensor((action_space.high - action_space.low) / 2.)
             self.action_bias = torch.FloatTensor((action_space.high + action_space.low) / 2.)
-
+            print("action_space.high: {0}, action_space.low: {1}".format(
+                action_space.high, action_space.low
+            ))
+            print("action_scale: {0}, self.action_bias: {1}".format(
+                self.action_scale, self.action_bias
+            ))
         self.to(DEVICE)
 
     def forward(self, state):
@@ -62,19 +67,16 @@ class GaussianPolicy(nn.Module):
     def sample(self, state):
         mean, log_std = self.forward(state)
         std = log_std.exp()
-        normal = Normal(mean, std)
-        x_t = normal.rsample()  # for reparameterization trick (mean + std * N(0,1))
-        y_t = torch.tanh(x_t)
-        action = y_t * self.action_scale + self.action_bias
-        log_prob = normal.log_prob(x_t)
-        #print(mean.shape, log_std.shape, action.shape, log_prob.shape, "!!!!! - 1")
+        dist = Normal(mean, std)
+        dist = TransformedDistribution(base_distribution=dist, transforms=TanhTransform(cache_size=1))
+        action = dist.rsample()  # for reparameterization trick (mean + std * N(0,1))
 
-        # Enforcing Action Bound
-        log_prob -= torch.log(self.action_scale * (1 - y_t.pow(2)) + epsilon)
-        #print(log_prob.shape, "!!!!! - 2")
+        log_prob = dist.log_prob(action)
+        #print(mean.shape, log_std.shape, action.shape, log_prob.shape, "!!!!! - 1")
 
         log_prob = log_prob.sum(dim=-1, keepdim=True)
 
+        action = action * self.action_scale + self.action_bias
         mean = torch.tanh(mean) * self.action_scale + self.action_bias
 
         return action, log_prob, mean

@@ -34,8 +34,11 @@ def test(env: gym.Env, actor: GaussianPolicy, num_episodes: int) -> None:
 def main_play(num_episodes: int, env_name: str) -> None:
     env = gym.make(env_name, render_mode="human")
 
-    policy = GaussianPolicy(n_features=3, n_actions=1)
-    model_params = torch.load(os.path.join(MODEL_DIR, "ddpg_{0}_latest.pth".format(env_name)), weights_only=True)
+    n_features = env.observation_space.shape[0]
+    n_actions = env.action_space.shape[0]
+
+    policy = GaussianPolicy(n_features=n_features, n_actions=n_actions)
+    model_params = torch.load(os.path.join(MODEL_DIR, "sac_{0}_latest.pth".format(env_name)), weights_only=True)
     policy.load_state_dict(model_params)
     policy.eval()
 
@@ -46,6 +49,7 @@ def main_play(num_episodes: int, env_name: str) -> None:
 
 if __name__ == "__main__":
     NUM_EPISODES = 3
-    ENV_NAME = "Ant-v5"
+    # ENV_NAME = "Ant-v5"
+    ENV_NAME = "Pendulum-v1"
 
     main_play(num_episodes=NUM_EPISODES, env_name=ENV_NAME)
