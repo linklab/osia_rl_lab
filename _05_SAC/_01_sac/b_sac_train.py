@@ -9,12 +9,13 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
-from a_actor_and_q_critic import MODEL_DIR, Actor, QCritic, ReplayBuffer, Transition
+
+from a_sac_models import MODEL_DIR, GaussianPolicy, QNetwork, ReplayBuffer, Transition, DEVICE
 
 import wandb
 
 
-class DDPG:
+class SAC:
     def __init__(self, env: gym.Env, test_env: gym.Env, config: dict, use_wandb: bool):
         self.env = env
         self.test_env = test_env
@@ -25,7 +26,7 @@ class DDPG:
         self.current_time = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S")
 
         if use_wandb:
-            self.wandb = wandb.init(project="DDPG_{0}".format(self.env_name), name=self.current_time, config=config)
+            self.wandb = wandb.init(project="sac_{0}".format(self.env_name), name=self.current_time, config=config)
         else:
             self.wandb = None
 
@@ -40,27 +41,43 @@ class DDPG:
         self.steps_between_train = config["steps_between_train"]
         self.soft_update_tau = config["soft_update_tau"]
         self.replay_buffer_size = config["replay_buffer_size"]
+        self.automatic_entropy_tuning = config["automatic_entropy_tuning"]
 
-        self.actor = Actor(n_features=3, n_actions=1)
-        self.target_actor = Actor(n_features=3, n_actions=1)
-        self.target_actor.load_state_dict(self.actor.state_dict())
-        self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.learning_rate)
+        n_features = env.observation_space.shape[0]
+        n_actions = env.action_space.shape[0]
 
-        self.q_critic = QCritic(n_features=3, n_actions=1)
-        self.target_q_critic = QCritic(n_features=3, n_actions=1)
-        self.target_q_critic.load_state_dict(self.q_critic.state_dict())
-        self.q_critic_optimizer = optim.Adam(self.q_critic.parameters(), lr=self.learning_rate)
+        self.policy = GaussianPolicy(n_features=n_features, n_actions=n_actions)
+        self.policy_optimizer = optim.Adam(self.policy.parameters(), lr=self.learning_rate)
+
+        self.q_network_1 = QNetwork(n_features=n_features, n_actions=n_actions)
+        self.q_network_2 = QNetwork(n_features=n_features, n_actions=n_actions)
+        self.target_q_network_1 = QNetwork(n_features=n_features, n_actions=n_actions)
+        self.target_q_network_2 = QNetwork(n_features=n_features, n_actions=n_actions)
+
+        self.target_q_network_1.load_state_dict(self.q_network_1.state_dict())
+        self.target_q_network_2.load_state_dict(self.q_network_2.state_dict())
+
+        self.q_network_1_optimizer = optim.Adam(self.q_network_1.parameters(), lr=self.learning_rate)
+        self.q_network_2_optimizer = optim.Adam(self.q_network_2.parameters(), lr=self.learning_rate)
 
         self.replay_buffer = ReplayBuffer(capacity=self.replay_buffer_size)
 
+        if self.automatic_entropy_tuning:
+            self.target_entropy = -torch.prod(torch.Tensor(env.action_space.shape).to(DEVICE)).item()
+            print("TARGET ENTROPY: {0}".format(self.target_entropy))
+            self.log_alpha = torch.zeros(1, requires_grad=True, device=DEVICE)
+            self.alpha_optimizer = optim.Adam([self.log_alpha], lr=self.learning_rate)
+
         self.time_steps = 0
         self.training_time_steps = 0
+
+        self.alpha = 0.2
 
     def train_loop(self) -> None:
         total_train_start_time = time.time()
 
         validation_episode_reward_avg = -1500
-        policy_loss = critic_loss = mu_v = 0.0
+        policy_loss = q_1_td_loss = q_2_td_loss = alpha_loss = mu_v = 0.0
 
         is_terminated = False
 
@@ -74,9 +91,9 @@ class DDPG:
             while not done:
                 self.time_steps += 1
 
-                action = self.actor.get_action(observation)
+                action = self.policy.get_action(observation)
 
-                next_observation, reward, terminated, truncated, _ = self.env.step(action * 2)
+                next_observation, reward, terminated, truncated, _ = self.env.step(action)
 
                 episode_reward += reward
 
@@ -88,15 +105,17 @@ class DDPG:
                 done = terminated or truncated
 
                 if self.time_steps % self.steps_between_train == 0 and self.time_steps > self.batch_size:
-                    policy_loss, critic_loss, mu_v = self.train()
+                    policy_loss, q_1_td_loss, q_2_td_loss, alpha_loss, mu_v = self.train()
 
             if n_episode % self.print_episode_interval == 0:
                 print(
-                    "[Episode {:3,}, Time Steps {:6,}]".format(n_episode, self.time_steps),
-                    "Episode Reward: {:>9.3f},".format(episode_reward),
-                    "Policy Loss: {:>7.3f},".format(policy_loss),
-                    "Critic Loss: {:>7.3f},".format(critic_loss),
-                    "Training Steps: {:5,}, ".format(self.training_time_steps),
+                    "[Epi. {:3,}, Time Steps {:6,}]".format(n_episode, self.time_steps),
+                    "Epi. Reward: {:>9.3f},".format(episode_reward),
+                    "Policy L.: {:>7.3f},".format(policy_loss),
+                    "Critic L.: {:>7.3f}, {:>7.3f}".format(q_1_td_loss, q_2_td_loss),
+                    "Alpha L.: {:>7.3f},".format(alpha_loss),
+                    "Alpha: {:>7.3f},".format(self.alpha),
+                    "Train Steps: {:5,}, ".format(self.training_time_steps),
                 )
 
             if n_episode % self.train_num_episodes_before_next_validation == 0:
@@ -121,7 +140,8 @@ class DDPG:
                     validation_episode_reward_avg,
                     episode_reward,
                     policy_loss,
-                    critic_loss,
+                    q_1_td_loss, q_2_td_loss,
+                    alpha_loss,
                     mu_v,
                     n_episode,
                 )
@@ -133,7 +153,8 @@ class DDPG:
                             validation_episode_reward_avg,
                             episode_reward,
                             policy_loss,
-                            critic_loss,
+                            q_1_td_loss, q_2_td_loss,
+                            alpha_loss,
                             mu_v,
                             n_episode,
                         )
@@ -150,7 +171,8 @@ class DDPG:
         validation_episode_reward_avg: float,
         episode_reward: float,
         policy_loss: float,
-        critic_loss: float,
+        q_1_td_loss: float, q_2_td_loss: float,
+        alpha_loss: float,
         mu_v: float,
         n_episode: float,
     ) -> None:
@@ -159,51 +181,87 @@ class DDPG:
                 "[VALIDATION] Mean Episode Reward ({0} Episodes)".format(
                     self.validation_num_episodes
                 ): validation_episode_reward_avg,
-                "[TRAIN] Episode Reward": episode_reward,
-                "[TRAIN] Policy Loss": policy_loss,
-                "[TRAIN] Critic Loss": critic_loss,
+                "[TRAIN] episode reward": episode_reward,
+                "[TRAIN] policy loss": policy_loss,
+                "[TRAIN] critic 1 loss": q_1_td_loss,
+                "[TRAIN] critic 2 loss": q_2_td_loss,
+                "[TRAIN] alpha loss": alpha_loss,
+                "[TRAIN] alpha": self.alpha,
                 "[TRAIN] mu_v": mu_v,
                 "[TRAIN] Replay buffer": self.replay_buffer.size(),
-                "Training Episode": n_episode,
-                "Training Steps": self.training_time_steps,
+                "training episode": n_episode,
+                "training steps": self.training_time_steps,
             }
         )
 
-    def train(self) -> tuple[float, float, float]:
+    def train(self):
         self.training_time_steps += 1
 
         observations, actions, next_observations, rewards, dones = self.replay_buffer.sample(self.batch_size)
 
-        # CRITIC UPDATE
-        q_values = self.q_critic(observations, actions).squeeze(dim=-1)
-        next_mu_v = self.target_actor(next_observations)
-        next_q_values = self.target_q_critic(next_observations, next_mu_v).squeeze(dim=-1)
-        next_q_values[dones] = 0.0
-        target_values = rewards.squeeze(dim=-1) + self.gamma * next_q_values
-        critic_loss = F.mse_loss(target_values.detach(), q_values)
-        self.q_critic_optimizer.zero_grad()
-        critic_loss.backward()
-        self.q_critic_optimizer.step()
+        ####################
+        # Q NETWORK UPDATE #
+        ####################
+        with torch.no_grad():
+            next_state_action, next_state_log_pi, _ = self.policy.sample(next_observations)
+            qf1_next_target = self.target_q_network_1(next_observations, next_state_action)
+            qf2_next_target = self.target_q_network_2(next_observations, next_state_action)
+            min_qf_next_target = torch.min(qf1_next_target, qf2_next_target) - self.alpha * next_state_log_pi
+            min_qf_next_target[dones] = 0.0
+            target_values = rewards + self.gamma * min_qf_next_target
 
-        # ACTOR UPDATE
-        mu_v = self.actor(observations)
-        q_v = self.q_critic(observations, mu_v)
-        actor_objective = q_v.mean()
-        actor_loss = -1.0 * actor_objective
+        # Two Q-functions to mitigate positive bias in the policy improvement step
+        qf1 = self.q_network_1(observations, actions)
+        qf2 = self.q_network_2(observations, actions)
+        qf1_loss = F.mse_loss(qf1, target_values) # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
+        qf2_loss = F.mse_loss(qf2, target_values) # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
 
-        self.actor_optimizer.zero_grad()
-        actor_loss.backward()
-        self.actor_optimizer.step()
+        self.q_network_1_optimizer.zero_grad()
+        qf1_loss.backward()
+        self.q_network_1_optimizer.step()
+
+        self.q_network_2_optimizer.zero_grad()
+        qf2_loss.backward()
+        self.q_network_2_optimizer.step()
+
+        #################
+        # Policy UPDATE #
+        #################
+        sample_actions, log_pi, mu = self.policy.sample(observations)
+
+        qf1_pi = self.q_network_1(observations, sample_actions)
+        qf2_pi = self.q_network_2(observations, sample_actions)
+        min_qf_pi = torch.min(qf1_pi, qf2_pi)
+
+        policy_loss = -1.0 * (min_qf_pi - self.alpha * log_pi).mean()  # Jπ = 𝔼st∼D,εt∼N[α * logπ(f(εt;st)|st) − Q(st,f(εt;st))]
+
+        self.policy_optimizer.zero_grad()
+        policy_loss.backward()
+        self.policy_optimizer.step()
+
+        #################
+        # Alpha UPDATE #
+        #################
+        if self.automatic_entropy_tuning:
+            alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
+
+            self.alpha_optimizer.zero_grad()
+            alpha_loss.backward()
+            self.alpha_optimizer.step()
+
+            self.alpha = self.log_alpha.exp().item()
+        else:
+            alpha_loss = torch.tensor(0.).to(DEVICE)
 
         # sync, TAU: 0.995
         self.soft_synchronize_models(
-            source_model=self.actor, target_model=self.target_actor, tau=self.soft_update_tau
+            source_model=self.q_network_1, target_model=self.target_q_network_1, tau=self.soft_update_tau
         )
         self.soft_synchronize_models(
-            source_model=self.q_critic, target_model=self.target_q_critic, tau=self.soft_update_tau
+            source_model=self.q_network_2, target_model=self.target_q_network_2, tau=self.soft_update_tau
         )
 
-        return actor_loss.item(), critic_loss.item(), mu_v.mean().item()
+        return policy_loss.item(), qf1_loss.item(), qf2_loss.item(), alpha_loss.item(), mu.mean().item()
 
     def soft_synchronize_models(self, source_model, target_model, tau):
         source_model_state = source_model.state_dict()
@@ -213,10 +271,10 @@ class DDPG:
         target_model.load_state_dict(target_model_state)
 
     def model_save(self, validation_episode_reward_avg: float) -> None:
-        filename = "ddpg_{0}_{1:4.1f}_{2}.pth".format(self.env_name, validation_episode_reward_avg, self.current_time)
-        torch.save(self.actor.state_dict(), os.path.join(MODEL_DIR, filename))
+        filename = "sac_{0}_{1:4.1f}_{2}.pth".format(self.env_name, validation_episode_reward_avg, self.current_time)
+        torch.save(self.policy.state_dict(), os.path.join(MODEL_DIR, filename))
 
-        copyfile(src=os.path.join(MODEL_DIR, filename), dst=os.path.join(MODEL_DIR, "ddpg_{0}_latest.pth".format(self.env_name)))
+        copyfile(src=os.path.join(MODEL_DIR, filename), dst=os.path.join(MODEL_DIR, "sac_{0}_latest.pth".format(self.env_name)))
 
     def validate(self) -> tuple[np.ndarray, float]:
         episode_reward_lst = np.zeros(shape=(self.validation_num_episodes,), dtype=float)
@@ -229,9 +287,9 @@ class DDPG:
             done = False
 
             while not done:
-                action = self.actor.get_action(observation, exploration=False)
+                action = self.policy.get_action(observation, exploration=False)
 
-                next_observation, reward, terminated, truncated, _ = self.test_env.step(action * 2)
+                next_observation, reward, terminated, truncated, _ = self.test_env.step(action)
 
                 episode_reward += reward
                 observation = next_observation
@@ -244,7 +302,7 @@ class DDPG:
 
 def main() -> None:
     print("TORCH VERSION:", torch.__version__)
-    ENV_NAME = "Pendulum-v1"
+    ENV_NAME = "Ant-v5"
 
     # env
     env = gym.make(ENV_NAME)
@@ -255,19 +313,20 @@ def main() -> None:
         "max_num_episodes": 200_000,                        # 훈련을 위한 최대 에피소드 횟수
         "batch_size": 256,                                  # 훈련시 배치에서 한번에 가져오는 랜덤 배치 사이즈
         "steps_between_train": 32,                          # 훈련 사이의 환경 스텝 수
-        "replay_buffer_size": 1_000_000,                       # 리플레이 버퍼 사이즈
+        "replay_buffer_size": 1_000_000,                    # 리플레이 버퍼 사이즈
         "learning_rate": 0.0003,                            # 학습율
         "gamma": 0.99,                                      # 감가율
-        "soft_update_tau": 0.995,                           # DDPG Soft Update Tau
+        "soft_update_tau": 0.995,                           # Soft Update Tau
         "print_episode_interval": 20,                       # Episode 통계 출력에 관한 에피소드 간격
         "train_num_episodes_before_next_validation": 100,   # 검증 사이 마다 각 훈련 episode 간격
         "validation_num_episodes": 3,                       # 검증에 수행하는 에피소드 횟수
-        "episode_reward_avg_solved": -150,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
+        "episode_reward_avg_solved": 5500,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
+        "automatic_entropy_tuning": True                    # Alpha Auto Tuning
     }
 
     use_wandb = True
-    ddpg = DDPG(env=env, test_env=test_env, config=config, use_wandb=use_wandb)
-    ddpg.train_loop()
+    sac = SAC(env=env, test_env=test_env, config=config, use_wandb=use_wandb)
+    sac.train_loop()
 
 
 if __name__ == "__main__":

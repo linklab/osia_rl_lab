@@ -245,7 +245,7 @@ def main() -> None:
         "gamma": 0.99,                                    # 감가율
         "steps_between_train": 1,                         # 훈련 사이의 환경 스텝 수
         "target_sync_step_interval": 500,                 # 기존 Q 모델을 타깃 Q 모델로 동기화시키는 step 간격
-        "replay_buffer_size": 30_000,                     # 리플레이 버퍼 사이즈
+        "replay_buffer_size": 1_000_000,                     # 리플레이 버퍼 사이즈
         "epsilon_start": 0.95,                            # Epsilon 초기 값
         "epsilon_end": 0.01,                              # Epsilon 최종 값
         "epsilon_final_scheduled_percent": 0.75,          # Epsilon 최종 값으로 스케줄되는 마지막 에피소드 비율

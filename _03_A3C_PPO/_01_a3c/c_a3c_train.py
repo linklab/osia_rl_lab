@@ -121,7 +121,7 @@ def master_loop(global_actor, shared_stat, run_wandb, global_lock, config):
                     "[TRAIN] Episode Reward": self.shared_stat.last_episode_reward.value,
                     "[TRAIN] Policy Loss": self.shared_stat.last_policy_loss.value,
                     "[TRAIN] Critic Loss": self.shared_stat.last_critic_loss.value,
-                    "[TRAIN] avg_mu_v": self.shared_stat.last_avg_mu_v.value,
+                    "[TRAIN] mu_v": self.shared_stat.last_avg_mu_v.value,
                     "[TRAIN] avg_std_v": self.shared_stat.last_avg_std_v.value,
                     "[TRAIN] avg_action": self.shared_stat.last_avg_action.value,
                     "Training Episode": self.shared_stat.global_episodes.value,
@@ -228,10 +228,10 @@ def worker_loop(
                     done = terminated or truncated
 
                     if self.time_steps % self.batch_size == 0:
-                        policy_loss, critic_loss, avg_mu_v, avg_std_v, avg_action = self.train()
+                        policy_loss, critic_loss, mu_v, avg_std_v, avg_action = self.train()
                         self.shared_stat.last_policy_loss.value = policy_loss
                         self.shared_stat.last_critic_loss.value = critic_loss
-                        self.shared_stat.last_avg_mu_v.value = avg_mu_v
+                        self.shared_stat.last_avg_mu_v.value = mu_v
                         self.shared_stat.last_avg_std_v.value = avg_std_v
                         self.shared_stat.last_avg_action.value = avg_action
 

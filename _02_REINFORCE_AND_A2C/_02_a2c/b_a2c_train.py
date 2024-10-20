@@ -55,7 +55,7 @@ class A2C:
         total_train_start_time = time.time()
 
         validation_episode_reward_avg = -1500
-        policy_loss = critic_loss = avg_mu_v = avg_std_v = avg_action = 0.0
+        policy_loss = critic_loss = mu_v = avg_std_v = avg_action = 0.0
 
         is_terminated = False
 
@@ -83,7 +83,7 @@ class A2C:
                 done = terminated or truncated
 
                 if self.time_steps % self.batch_size == 0:
-                    policy_loss, critic_loss, avg_mu_v, avg_std_v, avg_action = self.train()
+                    policy_loss, critic_loss, mu_v, avg_std_v, avg_action = self.train()
                     self.buffer.clear()
 
             if n_episode % self.print_episode_interval == 0:
@@ -118,7 +118,7 @@ class A2C:
                     episode_reward,
                     policy_loss,
                     critic_loss,
-                    avg_mu_v,
+                    mu_v,
                     avg_std_v,
                     avg_action,
                     n_episode,
@@ -132,7 +132,7 @@ class A2C:
                             episode_reward,
                             policy_loss,
                             critic_loss,
-                            avg_mu_v,
+                            mu_v,
                             avg_std_v,
                             avg_action,
                             n_episode,
@@ -151,7 +151,7 @@ class A2C:
         episode_reward: float,
         policy_loss: float,
         critic_loss: float,
-        avg_mu_v: float,
+        mu_v: float,
         avg_std_v: float,
         avg_action: float,
         n_episode: float,
@@ -164,7 +164,7 @@ class A2C:
                 "[TRAIN] Episode Reward": episode_reward,
                 "[TRAIN] Policy Loss": policy_loss,
                 "[TRAIN] Critic Loss": critic_loss,
-                "[TRAIN] avg_mu_v": avg_mu_v,
+                "[TRAIN] mu_v": mu_v,
                 "[TRAIN] avg_std_v": avg_std_v,
                 "[TRAIN] avg_action": avg_action,
                 "Training Episode": n_episode,

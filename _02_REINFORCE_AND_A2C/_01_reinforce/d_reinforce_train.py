@@ -80,7 +80,7 @@ class REINFORCE:
                 done = terminated or truncated
 
             # TRAIN AFTER EPISODE DONE
-            policy_loss, avg_mu_v, avg_std_v, avg_action = self.train()
+            policy_loss, mu_v, avg_std_v, avg_action = self.train()
             self.buffer.clear()
 
             if n_episode % self.print_episode_interval == 0:
@@ -110,14 +110,14 @@ class REINFORCE:
 
             if self.use_wandb and n_episode > self.train_num_episodes_before_next_validation:
                 self.log_wandb(
-                    validation_episode_reward_avg, episode_reward, policy_loss, avg_mu_v, avg_std_v, avg_action, n_episode
+                    validation_episode_reward_avg, episode_reward, policy_loss, mu_v, avg_std_v, avg_action, n_episode
                 )
 
             if is_terminated:
                 if self.use_wandb:
                     for _ in range(5):
                         self.log_wandb(
-                            validation_episode_reward_avg, episode_reward, policy_loss, avg_mu_v, avg_std_v, avg_action, n_episode
+                            validation_episode_reward_avg, episode_reward, policy_loss, mu_v, avg_std_v, avg_action, n_episode
                         )
                 break
 
@@ -133,7 +133,7 @@ class REINFORCE:
         validation_episode_reward_avg: float,
         episode_reward: float,
         policy_loss: float,
-        avg_mu_v: float,
+        mu_v: float,
         avg_std_v: float,
         avg_action: float,
         n_episode: int,
@@ -145,7 +145,7 @@ class REINFORCE:
                 ): validation_episode_reward_avg,
                 "[TRAIN] Episode Reward": episode_reward,
                 "[TRAIN] Policy Loss": policy_loss,
-                "[TRAIN] avg_mu_v": avg_mu_v,
+                "[TRAIN] mu_v": mu_v,
                 "[TRAIN] avg_std_v": avg_std_v,
                 "[TRAIN] avg_action": avg_action,
                 "Training Episode": n_episode,
