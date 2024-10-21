@@ -306,7 +306,7 @@ class SAC:
 
 def main() -> None:
     print("TORCH VERSION:", torch.__version__)
-    ENV_NAME = "Ant-v5"
+    ENV_NAME = "HalfCheetah-v5"
     # ENV_NAME = "Pendulum-v1"
 
     # env
@@ -326,7 +326,7 @@ def main() -> None:
         "train_num_episodes_before_next_validation": 100,   # 검증 사이 마다 각 훈련 episode 간격
         "validation_num_episodes": 3,                       # 검증에 수행하는 에피소드 횟수
         # "episode_reward_avg_solved": -150,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
-        "episode_reward_avg_solved": 5500,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
+        "episode_reward_avg_solved": 9000,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
         "learning_starts": 5000,                            # 충분한 경험 데이터 수집
         "automatic_entropy_tuning": False                    # Alpha Auto Tuning
     }
