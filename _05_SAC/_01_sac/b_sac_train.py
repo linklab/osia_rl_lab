@@ -7,6 +7,7 @@ from shutil import copyfile
 import gymnasium as gym
 import numpy as np
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
@@ -222,10 +223,12 @@ class SAC:
 
         self.q_network_1_optimizer.zero_grad()
         qf1_loss.backward()
+        nn.utils.clip_grad_norm_(self.q_network_1.parameters(), 3.0)
         self.q_network_1_optimizer.step()
 
         self.q_network_2_optimizer.zero_grad()
         qf2_loss.backward()
+        nn.utils.clip_grad_norm_(self.q_network_2.parameters(), 3.0)
         self.q_network_2_optimizer.step()
 
         #################
@@ -241,6 +244,7 @@ class SAC:
 
         self.policy_optimizer.zero_grad()
         policy_loss.backward()
+        nn.utils.clip_grad_norm_(self.policy.parameters(), 3.0)
         self.policy_optimizer.step()
 
         #################
@@ -251,6 +255,7 @@ class SAC:
 
             self.alpha_optimizer.zero_grad()
             alpha_loss.backward()
+            nn.utils.clip_grad_norm_([self.log_alpha], 3.0)
             self.alpha_optimizer.step()
 
             self.alpha = self.log_alpha.exp().item()
