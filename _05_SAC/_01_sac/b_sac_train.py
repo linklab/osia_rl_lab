@@ -41,6 +41,7 @@ class SAC:
         self.steps_between_train = config["steps_between_train"]
         self.soft_update_tau = config["soft_update_tau"]
         self.replay_buffer_size = config["replay_buffer_size"]
+        self.learning_starts = config["learning_starts"]
         self.automatic_entropy_tuning = config["automatic_entropy_tuning"]
 
         n_features = env.observation_space.shape[0]
@@ -91,7 +92,10 @@ class SAC:
             while not done:
                 self.time_steps += 1
 
-                action = self.policy.get_action(observation)
+                if self.time_steps < self.learning_starts:
+                    action = self.env.action_space.sample()
+                else:
+                    action = self.policy.get_action(observation)
 
                 next_observation, reward, terminated, truncated, _ = self.env.step(action)
 
@@ -323,6 +327,7 @@ def main() -> None:
         "validation_num_episodes": 3,                       # 검증에 수행하는 에피소드 횟수
         # "episode_reward_avg_solved": -150,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
         "episode_reward_avg_solved": 5500,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
+        "learning_starts": 5000,                            # 충분한 경험 데이터 수집
         "automatic_entropy_tuning": False                    # Alpha Auto Tuning
     }
 
