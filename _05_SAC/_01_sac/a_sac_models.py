@@ -64,12 +64,16 @@ class GaussianPolicy(nn.Module):
             _, _, action = self.sample(state)
         return action.detach().cpu().numpy()
 
-    def sample(self, state):
+    def sample(self, state, reparameterization_trick=False):
         mean, log_std = self.forward(state)
         std = log_std.exp()
         dist = Normal(mean, std)
         dist = TransformedDistribution(base_distribution=dist, transforms=TanhTransform(cache_size=1))
-        action = dist.rsample()  # for reparameterization trick (mean + std * N(0,1))
+
+        if reparameterization_trick:
+            action = dist.rsample()  # for reparameterization trick (mean + std * N(0,1))
+        else:
+            action = dist.sample()
 
         log_prob = dist.log_prob(action)
         #print(mean.shape, log_std.shape, action.shape, log_prob.shape, "!!!!! - 1")
