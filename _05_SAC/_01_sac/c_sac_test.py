@@ -37,7 +37,7 @@ def main_play(num_episodes: int, env_name: str) -> None:
     n_features = env.observation_space.shape[0]
     n_actions = env.action_space.shape[0]
 
-    policy = GaussianPolicy(n_features=n_features, n_actions=n_actions)
+    policy = GaussianPolicy(n_features=n_features, n_actions=n_actions, action_space=env.action_space)
     model_params = torch.load(os.path.join(MODEL_DIR, "sac_{0}_latest.pth".format(env_name)), weights_only=True)
     policy.load_state_dict(model_params)
     policy.eval()

@@ -41,6 +41,7 @@ class SAC:
         self.steps_between_train = config["steps_between_train"]
         self.soft_update_tau = config["soft_update_tau"]
         self.replay_buffer_size = config["replay_buffer_size"]
+        self.learning_starts = config["learning_starts"]
         self.automatic_entropy_tuning = config["automatic_entropy_tuning"]
 
         n_features = env.observation_space.shape[0]
@@ -91,7 +92,10 @@ class SAC:
             while not done:
                 self.time_steps += 1
 
-                action = self.policy.get_action(observation)
+                if self.time_steps < self.learning_starts:
+                    action = self.env.action_space.sample()
+                else:
+                    action = self.policy.get_action(observation)
 
                 next_observation, reward, terminated, truncated, _ = self.env.step(action)
 
@@ -303,7 +307,8 @@ class SAC:
 def main() -> None:
     print("TORCH VERSION:", torch.__version__)
     # ENV_NAME = "Ant-v5"
-    ENV_NAME = "Pendulum-v1"
+    ENV_NAME = "HalfCheetah-v5"
+    # ENV_NAME = "Pendulum-v1"
 
     # env
     env = gym.make(ENV_NAME)
@@ -312,17 +317,18 @@ def main() -> None:
     config = {
         "env_name": ENV_NAME,                               # 환경의 이름
         "max_num_episodes": 200_000,                        # 훈련을 위한 최대 에피소드 횟수
-        "batch_size": 512,                                  # 훈련시 배치에서 한번에 가져오는 랜덤 배치 사이즈
+        "batch_size": 256,                                  # 훈련시 배치에서 한번에 가져오는 랜덤 배치 사이즈
         "steps_between_train": 16,                          # 훈련 사이의 환경 스텝 수
         "replay_buffer_size": 1_000_000,                    # 리플레이 버퍼 사이즈
-        "learning_rate": 0.0001,                            # 학습율
+        "learning_rate": 0.0003,                            # 학습율
         "gamma": 0.99,                                      # 감가율
         "soft_update_tau": 0.995,                           # Soft Update Tau
         "print_episode_interval": 20,                       # Episode 통계 출력에 관한 에피소드 간격
         "train_num_episodes_before_next_validation": 100,   # 검증 사이 마다 각 훈련 episode 간격
         "validation_num_episodes": 3,                       # 검증에 수행하는 에피소드 횟수
-        "episode_reward_avg_solved": -150,  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
-        # "episode_reward_avg_solved": 5500,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
+        # "episode_reward_avg_solved": -150,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
+        "episode_reward_avg_solved": 9000,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
+        "learning_starts": 5000,                            # 충분한 경험 데이터 수집
         "automatic_entropy_tuning": True                    # Alpha Auto Tuning
     }
 
