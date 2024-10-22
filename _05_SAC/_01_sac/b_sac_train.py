@@ -251,7 +251,7 @@ class SAC:
         # Alpha UPDATE #
         #################
         if self.automatic_entropy_tuning:
-            alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
+            alpha_loss = -1.0 * (self.log_alpha.exp() * (log_pi + self.target_entropy).detach()).mean()
 
             self.alpha_optimizer.zero_grad()
             alpha_loss.backward()
