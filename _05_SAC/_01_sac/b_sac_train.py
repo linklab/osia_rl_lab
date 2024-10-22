@@ -353,7 +353,7 @@ def main() -> None:
         "automatic_entropy_tuning": True                    # Alpha Auto Tuning
     }
 
-    use_wandb = False
+    use_wandb = True
     sac = SAC(env=env, test_env=test_env, config=config, use_wandb=use_wandb)
     sac.train_loop()
 
