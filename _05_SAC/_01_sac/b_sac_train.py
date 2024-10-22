@@ -76,6 +76,8 @@ class SAC:
         self.time_steps = 0
         self.training_time_steps = 0
 
+        self.max_alpha = 5.0
+
     def train_loop(self) -> None:
         total_train_start_time = time.time()
 
@@ -265,7 +267,13 @@ class SAC:
             nn.utils.clip_grad_norm_([self.log_alpha], 3.0)
             self.alpha_optimizer.step()
 
-            self.alpha = self.log_alpha.exp().item()
+            # log_alpha를 기반으로 알파 값 계산 (상한선을 설정)
+            with torch.no_grad():
+                self.alpha = self.log_alpha.exp().item()
+
+                # 클램핑 기법을 사용해 알파 값이 상한선을 넘지 않도록 제한
+                if self.alpha > self.max_alpha:
+                    self.log_alpha.data = torch.log(torch.tensor(self.max_alpha))
         else:
             alpha_loss = torch.tensor(0.).to(DEVICE)
 
