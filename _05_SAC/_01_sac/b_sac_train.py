@@ -332,7 +332,7 @@ def main() -> None:
         "batch_size": 256,                                  # 훈련시 배치에서 한번에 가져오는 랜덤 배치 사이즈
         "steps_between_train": 16,                          # 훈련 사이의 환경 스텝 수
         "replay_buffer_size": 1_000_000,                    # 리플레이 버퍼 사이즈
-        "learning_rate": 0.0003,                            # 학습율
+        "learning_rate": 0.0001,                            # 학습율
         "gamma": 0.99,                                      # 감가율
         "soft_update_tau": 0.995,                           # Soft Update Tau
         "print_episode_interval": 20,                       # Episode 통계 출력에 관한 에피소드 간격
