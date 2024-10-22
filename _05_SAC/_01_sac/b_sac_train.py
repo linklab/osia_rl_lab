@@ -69,11 +69,12 @@ class SAC:
             print("TARGET ENTROPY: {0}".format(self.target_entropy))
             self.log_alpha = torch.zeros(1, requires_grad=True, device=DEVICE)
             self.alpha_optimizer = optim.Adam([self.log_alpha], lr=self.learning_rate)
+            self.alpha = self.log_alpha.exp().item()
+        else:
+            self.alpha = 0.2
 
         self.time_steps = 0
         self.training_time_steps = 0
-
-        self.alpha = 0.2
 
     def train_loop(self) -> None:
         total_train_start_time = time.time()
@@ -219,12 +220,13 @@ class SAC:
             min_qf_next_target = torch.min(qf1_next_target, qf2_next_target) - self.alpha * next_state_log_pi
             min_qf_next_target[dones] = 0.0
             target_values = rewards + self.gamma * min_qf_next_target
+            # target_values = (target_values - torch.mean(target_values)) / (torch.std(target_values) + 1e-7)
 
         # Two Q-functions to mitigate positive bias in the policy improvement step
         qf1 = self.q_network_1(observations, actions)
         qf2 = self.q_network_2(observations, actions)
-        qf1_loss = F.mse_loss(qf1, target_values) # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
-        qf2_loss = F.mse_loss(qf2, target_values) # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
+        qf1_loss = F.mse_loss(qf1, target_values)  # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
+        qf2_loss = F.mse_loss(qf2, target_values)  # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
 
         self.q_network_1_optimizer.zero_grad()
         qf1_loss.backward()
@@ -337,7 +339,8 @@ def main() -> None:
         "train_num_episodes_before_next_validation": 100,   # 검증 사이 마다 각 훈련 episode 간격
         "validation_num_episodes": 3,                       # 검증에 수행하는 에피소드 횟수
         # "episode_reward_avg_solved": -150,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
-        "episode_reward_avg_solved": 9000,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
+        # "episode_reward_avg_solved": 5000,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
+        "episode_reward_avg_solved": 9000,  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
         "learning_starts": 5000,                            # 충분한 경험 데이터 수집
         "automatic_entropy_tuning": True                    # Alpha Auto Tuning
     }
