@@ -67,7 +67,7 @@ class SAC:
         if self.automatic_entropy_tuning:
             self.target_entropy = -torch.prod(torch.Tensor(env.action_space.shape).to(DEVICE)).item()
             print("TARGET ENTROPY: {0}".format(self.target_entropy))
-            self.log_alpha = torch.zeros(1, requires_grad=True, device=DEVICE)
+            self.log_alpha = torch.tensor(0.2, requires_grad=True, device=DEVICE)
             self.alpha_optimizer = optim.Adam([self.log_alpha], lr=self.learning_rate)
             self.alpha = self.log_alpha.exp().item()
         else:
@@ -124,7 +124,7 @@ class SAC:
                     "Alpha L.: {:>7.3f},".format(alpha_loss),
                     "Alpha: {:>7.3f},".format(self.alpha),
                     "Entropy: {:>7.3f},".format(entropy),
-                    "Train Steps: {:5,}, ".format(self.training_time_steps),
+                    "Train Steps: {:5,}".format(self.training_time_steps),
                 )
 
             if n_episode % self.train_num_episodes_before_next_validation == 0:
@@ -262,6 +262,7 @@ class SAC:
         if self.automatic_entropy_tuning:
             alpha_loss = -1.0 * (self.log_alpha.exp() * (log_pi + self.target_entropy).detach()).mean()
 
+            # print(self.target_entropy, (log_pi + self.target_entropy).detach().mean(), self.log_alpha.exp(), alpha_loss, "!!!!!!!!!!!!!!")
             self.alpha_optimizer.zero_grad()
             alpha_loss.backward()
             nn.utils.clip_grad_norm_([self.log_alpha], 3.0)
@@ -273,7 +274,7 @@ class SAC:
 
                 # 클램핑 기법을 사용해 알파 값이 상한선을 넘지 않도록 제한
                 if self.alpha > self.max_alpha:
-                    self.log_alpha.data = torch.log(torch.tensor([self.max_alpha]))
+                    self.log_alpha.data = torch.log(torch.tensor(self.max_alpha))
         else:
             alpha_loss = torch.tensor(0.).to(DEVICE)
 
@@ -326,8 +327,8 @@ class SAC:
 
 def main() -> None:
     print("TORCH VERSION:", torch.__version__)
-    # ENV_NAME = "Ant-v5"
-    ENV_NAME = "HalfCheetah-v5"
+    ENV_NAME = "Ant-v5"
+    # ENV_NAME = "HalfCheetah-v5"
     # ENV_NAME = "Pendulum-v1"
 
     # env
@@ -347,8 +348,8 @@ def main() -> None:
         "train_num_episodes_before_next_validation": 100,   # 검증 사이 마다 각 훈련 episode 간격
         "validation_num_episodes": 3,                       # 검증에 수행하는 에피소드 횟수
         # "episode_reward_avg_solved": -150,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
-        # "episode_reward_avg_solved": 5000,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
-        "episode_reward_avg_solved": 9000,  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
+        "episode_reward_avg_solved": 5000,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
+        # "episode_reward_avg_solved": 9000,  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
         "learning_starts": 5000,                            # 충분한 경험 데이터 수집
         "automatic_entropy_tuning": True                    # Alpha Auto Tuning
     }
