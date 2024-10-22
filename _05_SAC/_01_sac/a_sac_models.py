@@ -59,9 +59,9 @@ class GaussianPolicy(nn.Module):
 
     def get_action(self, state, exploration: bool = True):
         if exploration:
-            action, _, _ = self.sample(state)
+            action, _, _, _ = self.sample(state)
         else:
-            _, _, action = self.sample(state)
+            _, _, action, _ = self.sample(state)
         return action.detach().cpu().numpy()
 
     def sample(self, state, reparameterization_trick=False):
@@ -80,10 +80,12 @@ class GaussianPolicy(nn.Module):
 
         log_prob = log_prob.sum(dim=-1, keepdim=True)
 
+        entropy = dist.base_dist.entropy().mean()
+
         action = action * self.action_scale + self.action_bias
         mean = torch.tanh(mean) * self.action_scale + self.action_bias
 
-        return action, log_prob, mean
+        return action, log_prob, mean, entropy
 
     def to(self, device):
         self.action_scale = self.action_scale.to(device)

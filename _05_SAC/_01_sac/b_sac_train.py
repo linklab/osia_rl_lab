@@ -79,7 +79,7 @@ class SAC:
         total_train_start_time = time.time()
 
         validation_episode_reward_avg = -1500
-        policy_loss = q_1_td_loss = q_2_td_loss = alpha_loss = mu_v = 0.0
+        policy_loss = q_1_td_loss = q_2_td_loss = alpha_loss = mu = entropy = 0.0
 
         is_terminated = False
 
@@ -110,7 +110,7 @@ class SAC:
                 done = terminated or truncated
 
                 if self.time_steps % self.steps_between_train == 0 and self.time_steps > self.batch_size:
-                    policy_loss, q_1_td_loss, q_2_td_loss, alpha_loss, mu_v = self.train()
+                    policy_loss, q_1_td_loss, q_2_td_loss, alpha_loss, mu, entropy = self.train()
 
             if n_episode % self.print_episode_interval == 0:
                 print(
@@ -120,6 +120,7 @@ class SAC:
                     "Critic L.: {:>7.3f}, {:>7.3f}".format(q_1_td_loss, q_2_td_loss),
                     "Alpha L.: {:>7.3f},".format(alpha_loss),
                     "Alpha: {:>7.3f},".format(self.alpha),
+                    "Entropy: {:>7.3f},".format(entropy),
                     "Train Steps: {:5,}, ".format(self.training_time_steps),
                 )
 
@@ -147,7 +148,8 @@ class SAC:
                     policy_loss,
                     q_1_td_loss, q_2_td_loss,
                     alpha_loss,
-                    mu_v,
+                    mu,
+                    entropy,
                     n_episode,
                 )
 
@@ -160,7 +162,8 @@ class SAC:
                             policy_loss,
                             q_1_td_loss, q_2_td_loss,
                             alpha_loss,
-                            mu_v,
+                            mu,
+                            entropy,
                             n_episode,
                         )
                 break
@@ -178,7 +181,8 @@ class SAC:
         policy_loss: float,
         q_1_td_loss: float, q_2_td_loss: float,
         alpha_loss: float,
-        mu_v: float,
+        mu: float,
+        entropy: float,
         n_episode: float,
     ) -> None:
         self.wandb.log(
@@ -192,7 +196,8 @@ class SAC:
                 "[TRAIN] critic 2 loss": q_2_td_loss,
                 "[TRAIN] alpha loss": alpha_loss,
                 "[TRAIN] alpha": self.alpha,
-                "[TRAIN] mu_v": mu_v,
+                "[TRAIN] mu": mu,
+                "[TRAIN] entropy": entropy,
                 "[TRAIN] Replay buffer": self.replay_buffer.size(),
                 "training episode": n_episode,
                 "training steps": self.training_time_steps,
@@ -208,7 +213,7 @@ class SAC:
         # Q NETWORK UPDATE #
         ####################
         with torch.no_grad():
-            next_state_action, next_state_log_pi, _ = self.policy.sample(next_observations)
+            next_state_action, next_state_log_pi, _, _ = self.policy.sample(next_observations)
             qf1_next_target = self.target_q_network_1(next_observations, next_state_action)
             qf2_next_target = self.target_q_network_2(next_observations, next_state_action)
             min_qf_next_target = torch.min(qf1_next_target, qf2_next_target) - self.alpha * next_state_log_pi
@@ -234,7 +239,7 @@ class SAC:
         #################
         # Policy UPDATE #
         #################
-        sample_actions, log_pi, mu = self.policy.sample(observations, reparameterization_trick=True)
+        sample_actions, log_pi, mu, entropy = self.policy.sample(observations, reparameterization_trick=True)
 
         qf1_pi = self.q_network_1(observations, sample_actions)
         qf2_pi = self.q_network_2(observations, sample_actions)
@@ -270,7 +275,7 @@ class SAC:
             source_model=self.q_network_2, target_model=self.target_q_network_2, tau=self.soft_update_tau
         )
 
-        return policy_loss.item(), qf1_loss.item(), qf2_loss.item(), alpha_loss.item(), mu.mean().item()
+        return policy_loss.item(), qf1_loss.item(), qf2_loss.item(), alpha_loss.item(), mu.mean().item(), entropy.item()
 
     def soft_synchronize_models(self, source_model, target_model, tau):
         source_model_state = source_model.state_dict()
@@ -337,7 +342,7 @@ def main() -> None:
         "automatic_entropy_tuning": True                    # Alpha Auto Tuning
     }
 
-    use_wandb = True
+    use_wandb = False
     sac = SAC(env=env, test_env=test_env, config=config, use_wandb=use_wandb)
     sac.train_loop()
 
