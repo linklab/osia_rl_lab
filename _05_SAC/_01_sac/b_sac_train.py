@@ -219,7 +219,6 @@ class SAC:
             min_qf_next_target[dones] = 0.0
             target_values = rewards + self.gamma * min_qf_next_target
 
-
         # Two Q-functions to mitigate positive bias in the policy improvement step
         qf1, qf2 = self.q_network(observations, actions)
         qf1_loss = F.mse_loss(qf1, target_values)  # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
