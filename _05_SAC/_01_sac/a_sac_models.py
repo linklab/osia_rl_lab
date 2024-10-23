@@ -68,22 +68,22 @@ class GaussianPolicy(nn.Module):
         mean, log_std = self.forward(state)
         std = log_std.exp()
         dist = Normal(mean, std)
-        dist = TransformedDistribution(base_distribution=dist, transforms=TanhTransform(cache_size=1))
 
         if reparameterization_trick:
-            action = dist.rsample()  # for reparameterization trick (mean + std * N(0,1))
+            x_t = dist.rsample()  # for reparameterization trick (mean + std * N(0,1))
         else:
-            action = dist.sample()
+            x_t = dist.sample()
 
-        log_prob = dist.log_prob(action)
-        #print(mean.shape, log_std.shape, action.shape, log_prob.shape, "!!!!! - 1")
+        y_t = torch.tanh(x_t)
+        action = y_t * self.action_scale + self.action_bias
 
+        log_prob = dist.log_prob(x_t)
+        # Enforcing Action Bound
+        log_prob = log_prob - torch.log(self.action_scale * (1 - y_t.pow(2)) + 1e-6)
         log_prob = log_prob.sum(dim=-1, keepdim=True)
-
-        entropy = dist.base_dist.entropy().mean()
-
-        action = action * self.action_scale + self.action_bias
         mean = torch.tanh(mean) * self.action_scale + self.action_bias
+
+        entropy = dist.entropy().mean()
 
         return action, log_prob, mean, entropy
 
