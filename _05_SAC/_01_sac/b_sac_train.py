@@ -10,6 +10,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from gymnasium.wrappers import NormalizeReward
 
 from a_sac_models import MODEL_DIR, GaussianPolicy, SoftQNetwork, ReplayBuffer, Transition, DEVICE
 
@@ -217,7 +218,7 @@ class SAC:
             min_qf_next_target = torch.min(qf1_next_target, qf2_next_target) - self.alpha * next_state_log_pi
             min_qf_next_target[dones] = 0.0
             target_values = rewards + self.gamma * min_qf_next_target
-            # target_values = (target_values - torch.mean(target_values)) / (torch.std(target_values) + 1e-7)
+
 
         # Two Q-functions to mitigate positive bias in the policy improvement step
         qf1, qf2 = self.q_network(observations, actions)
@@ -239,7 +240,7 @@ class SAC:
         min_qf_pi = torch.min(qf1_pi, qf2_pi)
 
         policy_loss = -1.0 * (min_qf_pi - self.alpha * log_pi).mean()  # Jπ = 𝔼st∼D,εt∼N[α * logπ(f(εt;st)|st) − Q(st,f(εt;st))]
-
+        #print(min_qf_pi.max(), self.alpha, log_pi.max(), (min_qf_pi - self.alpha * log_pi).mean(), "!!!!!!!!!!!!!!!!!!!!!!!!")
         self.policy_optimizer.zero_grad()
         policy_loss.backward()
         nn.utils.clip_grad_norm_(self.policy.parameters(), 3.0)
@@ -249,7 +250,10 @@ class SAC:
         # Alpha UPDATE #
         #################
         if self.automatic_entropy_tuning:
-            alpha_loss = -1.0 * (self.log_alpha.exp() * (log_pi + self.target_entropy).detach()).mean()
+            with torch.no_grad():
+                _, log_pi, _, _ = self.policy.sample(observations)
+
+            alpha_loss = (-self.log_alpha.exp() * (log_pi + self.target_entropy).detach()).mean()
 
             # print(self.target_entropy, (log_pi + self.target_entropy).detach().mean(), self.log_alpha.exp(), alpha_loss, "!!!!!!!!!!!!!!")
             self.alpha_optimizer.zero_grad()
@@ -313,9 +317,9 @@ class SAC:
 
 def main() -> None:
     print("TORCH VERSION:", torch.__version__)
-    ENV_NAME = "Ant-v5"
+    # ENV_NAME = "Ant-v5"
     # ENV_NAME = "HalfCheetah-v5"
-    # ENV_NAME = "Pendulum-v1"
+    ENV_NAME = "Pendulum-v1"
 
     # env
     env = gym.make(ENV_NAME)
@@ -333,9 +337,9 @@ def main() -> None:
         "print_episode_interval": 20,                       # Episode 통계 출력에 관한 에피소드 간격
         "train_num_episodes_before_next_validation": 100,   # 검증 사이 마다 각 훈련 episode 간격
         "validation_num_episodes": 3,                       # 검증에 수행하는 에피소드 횟수
-        "episode_reward_avg_solved": 5000,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
+        # "episode_reward_avg_solved": 5000,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
         # "episode_reward_avg_solved": 9000,  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
-        # "episode_reward_avg_solved": -150,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
+        "episode_reward_avg_solved": -150,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
         "learning_starts": 5000,                            # 충분한 경험 데이터 수집
         "automatic_entropy_tuning": True                    # Alpha Auto Tuning
     }
