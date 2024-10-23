@@ -93,27 +93,32 @@ class GaussianPolicy(nn.Module):
         return super(GaussianPolicy, self).to(device)
 
 
-class QNetwork(nn.Module):
-    """
-    Value network V(s_t) = E[G_t | s_t] to use as a baseline in the reinforce
-    update. This a Neural Net with 1 hidden layer
-    """
-
+class SoftQNetwork(nn.Module):
     def __init__(self, n_features: int = 3, n_actions: int = 1, hidden_dim=256):
         super().__init__()
-        self.fc1 = nn.Linear(n_features + n_actions, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc3 = nn.Linear(hidden_dim, 1)
+        self.fc1_1 = nn.Linear(n_features + n_actions, hidden_dim)
+        self.fc1_2 = nn.Linear(hidden_dim, hidden_dim)
+        self.fc1_3 = nn.Linear(hidden_dim, 1)
+
+        self.fc2_1 = nn.Linear(n_features + n_actions, hidden_dim)
+        self.fc2_2 = nn.Linear(hidden_dim, hidden_dim)
+        self.fc2_3 = nn.Linear(hidden_dim, 1)
+
         self.to(DEVICE)
 
     def forward(self, x, action) -> torch.Tensor:
         if isinstance(x, np.ndarray):
             x = torch.tensor(x, dtype=torch.float32, device=DEVICE)
         x = torch.cat(tensors=[x, action], dim=-1)
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = self.fc3(x)
-        return x
+
+        x1 = F.relu(self.fc1_1(x))
+        x1 = F.relu(self.fc1_2(x1))
+        x1 = self.fc1_3(x1)
+
+        x2 = F.relu(self.fc2_1(x))
+        x2 = F.relu(self.fc2_2(x2))
+        x2 = self.fc2_3(x2)
+        return x1, x2
 
 
 Transition = collections.namedtuple(
