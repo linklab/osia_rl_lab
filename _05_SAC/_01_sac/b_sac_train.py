@@ -63,7 +63,7 @@ class SAC:
         if self.automatic_entropy_tuning:
             self.target_entropy = -torch.prod(torch.Tensor(env.action_space.shape).to(DEVICE)).item()
             print("TARGET ENTROPY: {0}".format(self.target_entropy))
-            self.log_alpha = torch.zeros(1, requires_grad=True, device=DEVICE)
+            self.log_alpha = torch.tensor(0.2, requires_grad=True, device=DEVICE)
             self.alpha_optimizer = optim.Adam([self.log_alpha], lr=self.learning_rate)
             self.alpha = self.log_alpha.exp().item()
         else:
@@ -120,7 +120,7 @@ class SAC:
                     "Alpha L.: {:>7.3f},".format(alpha_loss),
                     "Alpha: {:>7.3f},".format(self.alpha),
                     "Entropy: {:>7.3f},".format(entropy),
-                    "Train Steps: {:5,}, ".format(self.training_time_steps),
+                    "Train Steps: {:5,}".format(self.training_time_steps),
                 )
 
             if n_episode % self.train_num_episodes_before_next_validation == 0:
@@ -251,6 +251,7 @@ class SAC:
         if self.automatic_entropy_tuning:
             alpha_loss = -1.0 * (self.log_alpha.exp() * (log_pi + self.target_entropy).detach()).mean()
 
+            # print(self.target_entropy, (log_pi + self.target_entropy).detach().mean(), self.log_alpha.exp(), alpha_loss, "!!!!!!!!!!!!!!")
             self.alpha_optimizer.zero_grad()
             alpha_loss.backward()
             nn.utils.clip_grad_norm_([self.log_alpha], 3.0)
