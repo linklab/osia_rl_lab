@@ -1,16 +1,12 @@
 import random
 import time
-
+from datetime import datetime
 import gymnasium as gym
-import matplotlib.pyplot as plt
 import numpy as np
 
+import wandb
+
 print(f"gym.__version__: {gym.__version__}")
-
-
-np.set_printoptions(precision=3)
-np.set_printoptions(suppress=True)
-
 
 ACTION_STRING_LIST = [" LEFT", " DOWN", "RIGHT", "   UP"]
 IS_SLIPPERY = False
@@ -19,16 +15,25 @@ DESC = None
 
 
 class QTableAgent:
-    def __init__(self, env: gym.Env, num_episodes: int, validation_num_episodes: int, alpha: float, gamma: float, epsilon: float):
+    def __init__(
+            self, env, config, use_wandb
+    ):
         self.env = env
-        self.num_episodes = num_episodes
-        self.validation_num_episodes = validation_num_episodes
-        self.alpha = alpha
-        self.gamma = gamma
-        self.epsilon = epsilon
+        self.num_episodes = config["num_episodes"]
+        self.train_num_episodes_before_next_validation = config["train_num_episodes_before_next_validation"]
+        self.validation_num_episodes = config["validation_num_episodes"]
+        self.alpha = config["alpha"]
+        self.gamma = config["gamma"]
+        self.epsilon = config["epsilon"]
+        self.use_wandb = use_wandb
 
         # Q-Table 초기화
         self.q_table = np.zeros([env.observation_space.n, env.action_space.n])
+
+        self.current_time = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S")
+
+        if self.use_wandb:
+            wandb.init(project="Q_LEARNING_FROZEN_LAKE_2", config=config)
 
     def greedy_action(self, observation: np.ndarray) -> int:
         action_values = self.q_table[observation, :]
@@ -60,6 +65,7 @@ class QTableAgent:
             visited_states = [observation]
 
             episode_step = 0
+            avg_episode_reward_validation = 0.0
             done = False
 
             while not done:
@@ -90,24 +96,35 @@ class QTableAgent:
                 ),
                 "GOAL" if done and observation == 15 else "",
             )
-            episode_reward_list.append(episode_reward)
-            episode_td_error_list.append(episode_td_error / episode_step)
 
-            if (episode + 1) % 10 == 0:
-                episode_reward_list_test, avg_episode_reward_test = self.validate()
+            if (episode + 1) % self.train_num_episodes_before_next_validation == 0:
+                episode_reward_list_validation, avg_episode_reward_validation = self.validate()
                 print(
                     "[VALIDATION RESULTS: {0} Episodes, Episode Reward List: {1}] Episode Reward Mean: {2:.3f}".format(
-                        self.validation_num_episodes, episode_reward_list_test, avg_episode_reward_test
+                        self.validation_num_episodes,
+                        episode_reward_list_validation,
+                        avg_episode_reward_validation
                     )
                 )
-                if avg_episode_reward_test == 1.0:
+                if avg_episode_reward_validation == 1.0:
                     print("***** TRAINING DONE!!! *****")
                     is_train_success = True
                     break
 
+            if self.use_wandb:
+                wandb.log({
+                    "[TRAIN] Length of Visited States": len(visited_states),
+                    "[TRAIN] Episode Reward": episode_reward,
+                    "[TRAIN] Average Episode TD Error": episode_td_error / episode_step,
+                    "[VALIDATION] Average Episode Reward": avg_episode_reward_validation
+                })
+
+        if self.use_wandb:
+            wandb.finish()
+
         return episode_reward_list, episode_td_error_list, is_train_success
 
-    def validate(self) -> tuple[list[float], float]:
+    def validate(self):
         episode_reward_lst = np.zeros(shape=(self.validation_num_episodes,), dtype=float)
 
         test_env = gym.make("FrozenLake-v1", desc=DESC, map_name=MAP_NAME, is_slippery=IS_SLIPPERY)
@@ -131,21 +148,24 @@ class QTableAgent:
         return episode_reward_lst, np.mean(episode_reward_lst)
 
 
-def main() -> None:
-    NUM_EPISODES = 200
-    VALIDATION_NUM_EPISODES = 10
-    ALPHA = 0.1
-    GAMMA = 0.95
-    EPSILON = 0.1
+def main():
+    config = {
+        "num_episodes": 200,
+        "train_num_episodes_before_next_validation": 10,
+        "validation_num_episodes": 10,
+        "alpha": 0.1,
+        "gamma": 0.95,
+        "epsilon": 0.1
+    }
 
     env = gym.make("FrozenLake-v1", desc=DESC, map_name=MAP_NAME, is_slippery=IS_SLIPPERY)
+
+    use_wandb = True
+
     q_table_agent = QTableAgent(
         env=env,
-        num_episodes=NUM_EPISODES,
-        validation_num_episodes=VALIDATION_NUM_EPISODES,
-        alpha=ALPHA,
-        gamma=GAMMA,
-        epsilon=EPSILON,
+        config=config,
+        use_wandb=use_wandb,
     )
 
     episode_reward_list, episode_td_error_list, is_train_success = q_table_agent.train()
@@ -156,16 +176,6 @@ def main() -> None:
         for action_state in observation:
             print("{0:5.3f} ".format(action_state), end=" ")
         print()
-
-    plt.plot(range(len(episode_reward_list)), episode_reward_list, color="blue")
-    plt.xlabel("episodes")
-    plt.ylabel("training episode reward (blue)")
-    plt.show()
-
-    plt.plot(range(len(episode_td_error_list)), episode_td_error_list, color="red")
-    plt.xlabel("episodes")
-    plt.ylabel("td_error (red)")
-    plt.show()
 
     if is_train_success:
         q_learning_test(q_table_agent=q_table_agent)
