@@ -108,7 +108,7 @@ class DQN:
                     "[Episode {:3,}, Time Steps {:6,}]".format(n_episode, self.time_steps),
                     "Episode Reward: {:>5},".format(episode_reward),
                     "Replay buffer: {:>6,},".format(self.replay_buffer.size()),
-                    "Loss: {:6.3f},".format(loss),
+                    "Loss: {:7.5f},".format(loss),
                     "Epsilon: {:4.2f},".format(epsilon),
                     "Training Steps: {:5,},".format(self.training_time_steps),
                 )
