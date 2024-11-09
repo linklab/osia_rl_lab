@@ -10,7 +10,7 @@ env = gym.make("CartPole-v1", render_mode="human")
 ACTION_STRING_LIST = [" LEFT", "RIGHT"]
 
 
-def env_info_details() -> None:
+def env_info_details():
     #####################
     # observation space #
     #####################
