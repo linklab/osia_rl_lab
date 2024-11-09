@@ -273,13 +273,13 @@ def main() -> None:
         "epsilon_start": 0.95,                            # Epsilon 초기 값
         "epsilon_end": 0.01,                              # Epsilon 최종 값
         "epsilon_final_scheduled_percent": 0.75,          # Epsilon 최종 값으로 스케줄되는 마지막 에피소드 비율
-        "print_episode_interval": 10,                     # Episode 통계 출력에 관한 에피소드 간격
+        "print_episode_interval": 5,                      # Episode 통계 출력에 관한 에피소드 간격
         "train_num_episodes_before_next_validation": 100, # 검증 사이 마다 각 훈련 episode 간격
         "validation_num_episodes": 3,                     # 검증에 수행하는 에피소드 횟수
         "episode_reward_avg_solved": 20,                  # 훈련 종료를 위한 검증 에피소드 리워드의 Average
     }
 
-    use_wandb = False
+    use_wandb = True
     dqn = DQN(env=env, valid_env=valid_env, config=config, use_wandb=use_wandb)
     dqn.train_loop()
 
