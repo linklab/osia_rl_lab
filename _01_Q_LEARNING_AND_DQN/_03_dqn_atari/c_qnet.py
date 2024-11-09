@@ -16,7 +16,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class QNetCNN(nn.Module):
-    def __init__(self, n_actions: int = 4):
+    def __init__(self, n_actions: int = 6):
         super().__init__()
         self.n_actions = n_actions
 

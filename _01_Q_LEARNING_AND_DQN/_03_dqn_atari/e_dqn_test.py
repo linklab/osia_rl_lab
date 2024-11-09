@@ -3,11 +3,12 @@ import os
 
 import gymnasium as gym
 import torch
+from gymnasium.wrappers import FrameStackObservation, AtariPreprocessing
 
-from c_qnet import MODEL_DIR, QNet
+from c_qnet import MODEL_DIR, QNetCNN
 
 
-def test(env: gym.Env, q: QNet, num_episodes: int) -> None:
+def test(env: gym.Env, q, num_episodes):
     for i in range(num_episodes):
         episode_reward = 0  # cumulative_reward
 
@@ -32,9 +33,19 @@ def test(env: gym.Env, q: QNet, num_episodes: int) -> None:
 
 
 def main_play(num_episodes: int, env_name: str) -> None:
-    env = gym.make(env_name, render_mode="human")
+    env = gym.make(env_name, render_mode="rgb_array")
+    env = AtariPreprocessing(
+        env,
+        noop_max=30,
+        frame_skip=4,
+        screen_size=(84, 84),
+        grayscale_obs=True,
+        grayscale_newaxis=False,
+        scale_obs=True
+    )
+    env = FrameStackObservation(env, stack_size=4)
 
-    q = QNet(n_features=4, n_actions=2)
+    q = QNetCNN(n_actions=6)
     model_params = torch.load(os.path.join(MODEL_DIR, "dqn_{0}_latest.pth".format(env_name)), weights_only=True)
     q.load_state_dict(model_params)
     q.eval()
@@ -46,6 +57,6 @@ def main_play(num_episodes: int, env_name: str) -> None:
 
 if __name__ == "__main__":
     NUM_EPISODES = 3
-    ENV_NAME = "CartPole-v1"
+    ENV_NAME = "PongNoFrameskip-v4"
 
     main_play(num_episodes=NUM_EPISODES, env_name=ENV_NAME)

@@ -11,10 +11,9 @@ print("gym.__version__:", gym.__version__)
 
 gym.register_envs(ale_py)
 
-env = gym.make("ALE/Breakout-v5", render_mode="rgb_array")
+env = gym.make("ALE/Pong-v5", render_mode="rgb_array")
 
-
-ACTION_STRING_LIST = [" NOOP", " FIRE", "RIGHT", " LEFT"]
+ACTION_STRING_LIST = [" NOOP", " FIRE", "RIGHT", " LEFT", "RIGHTFIRE", "LEFTFIRE"]
 
 print(env.observation_space) # Box(0, 255, (210, 160, 3), uint8)
 print(env.action_space)      # Discrete(4)
@@ -22,7 +21,7 @@ print(env.action_space)      # Discrete(4)
 
 class Dummy_Agent:
     def get_action(self, observation: np.ndarray) -> int:
-        available_action_ids = [0, 1, 2, 3]
+        available_action_ids = [0, 1, 2, 3, 4, 5]
         action_id = random.choice(available_action_ids)
         return action_id
 

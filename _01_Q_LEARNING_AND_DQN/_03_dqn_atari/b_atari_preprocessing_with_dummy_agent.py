@@ -13,13 +13,12 @@ print("gym.__version__:", gym.__version__)
 
 gym.register_envs(ale_py)
 
-env = gym.make("BreakoutNoFrameskip-v4", render_mode="rgb_array")
+env = gym.make("PongNoFrameskip-v4", render_mode="rgb_array")
 env = AtariPreprocessing(
     env,
     noop_max=30,
     frame_skip=4,
     screen_size=(84, 84),
-    terminal_on_life_loss = True,
     grayscale_obs=True,
     grayscale_newaxis=False,
     scale_obs=True
@@ -68,7 +67,6 @@ def run_env() -> None:
         observation = next_observation
         done = terminated or truncated
         episode_step += 1
-        time.sleep(0.1)
 
 
 if __name__ == "__main__":
