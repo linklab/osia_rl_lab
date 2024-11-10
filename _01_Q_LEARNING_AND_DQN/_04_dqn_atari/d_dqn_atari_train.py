@@ -9,7 +9,7 @@ from _01_Q_LEARNING_AND_DQN._02_dqn_cartpole.d_dqn_train_test import DqnTrainer
 gym.register_envs(ale_py)
 
 
-def main() -> None:
+def main():
     print("TORCH VERSION:", torch.__version__)
     ENV_NAME = "PongNoFrameskip-v4"
 

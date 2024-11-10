@@ -6,7 +6,7 @@ from _01_Q_LEARNING_AND_DQN._02_dqn_cartpole.c_qnet import QNet
 from _01_Q_LEARNING_AND_DQN._02_dqn_cartpole.d_dqn_train_test import DqnTrainer
 
 
-def main() -> None:
+def main():
     print("TORCH VERSION:", torch.__version__)
     ENV_NAME = "CartPole-v1"
 

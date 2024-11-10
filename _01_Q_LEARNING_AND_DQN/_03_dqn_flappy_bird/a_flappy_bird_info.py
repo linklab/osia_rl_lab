@@ -6,7 +6,7 @@ import flappy_bird_gymnasium
 
 print("gym.__version__:", gym.__version__)
 
-env = gym.make("FlappyBird-v0", render_mode="human", use_lidar=False)
+env = gym.make("FlappyBird-v0", render_mode="human", use_lidar=True)
 
 ACTION_STRING_LIST = ["NOTHING", "   FLAP"]
 

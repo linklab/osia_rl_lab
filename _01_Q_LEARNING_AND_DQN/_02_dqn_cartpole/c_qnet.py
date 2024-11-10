@@ -19,9 +19,9 @@ class QNet(nn.Module):
         super().__init__()
         self.n_features = n_features
         self.n_actions = n_actions
-        self.fc1 = nn.Linear(n_features, 128)  # fully connected
-        self.fc2 = nn.Linear(128, 128)
-        self.fc3 = nn.Linear(128, n_actions)
+        self.fc1 = nn.Linear(n_features, 256)  # fully connected
+        self.fc2 = nn.Linear(256, 256)
+        self.fc3 = nn.Linear(256, n_actions)
         self.to(DEVICE)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

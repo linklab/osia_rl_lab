@@ -75,7 +75,9 @@ class DqnTrainer:
         self.current_time = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S")
 
         if self.use_wandb:
-            self.wandb = wandb.init(project="DQN_{0}".format(self.config["env_name"]), name=self.current_time, config=config)
+            self.wandb = wandb.init(
+                project="DQN_{0}".format(self.config["env_name"]), name=self.current_time, config=config
+            )
 
         self.epsilon_scheduled_last_episode = self.config["max_num_episodes"] * self.config["epsilon_final_scheduled_percent"]
 
