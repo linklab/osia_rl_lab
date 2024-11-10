@@ -14,6 +14,7 @@ def main():
     test_env = gym.make(ENV_NAME, render_mode="human")
     test_env = gym.wrappers.AtariPreprocessing(
         test_env,
+        noop_max=30,
         frame_skip=4,
         screen_size=(84, 84),
         grayscale_obs=True,
