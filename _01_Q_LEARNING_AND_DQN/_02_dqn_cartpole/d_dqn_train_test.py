@@ -303,7 +303,11 @@ class DqnTester:
 
         self.qnet = qnet
 
-        model_params = torch.load(os.path.join(self.model_dir, "dqn_{0}_latest.pth".format(env_name)), weights_only=True)
+        model_params = torch.load(
+            os.path.join(self.model_dir, "dqn_{0}_latest.pth".format(env_name)),
+            weights_only=True,
+            map_location=DEVICE
+        )
         self.qnet.load_state_dict(model_params)
         self.qnet.eval()
 
