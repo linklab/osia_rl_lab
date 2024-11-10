@@ -239,4 +239,5 @@ fabric.properties
 
 **/wandb
 **/models
+**/videos
 .idea
