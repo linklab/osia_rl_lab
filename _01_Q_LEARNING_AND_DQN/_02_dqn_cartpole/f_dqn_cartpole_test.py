@@ -10,16 +10,16 @@ CURRENT_DIR = os.path.dirname(os.path.realpath(__file__))
 def main():
     ENV_NAME = "CartPole-v1"
 
-    env = gym.make(ENV_NAME, render_mode="rgb_array")
+    test_env = gym.make(ENV_NAME, render_mode="rgb_array")
 
     qnet = QNet(n_features=4, n_actions=2)
 
     dqn_tester = DqnTester(
-        env=env, qnet = qnet, env_name=ENV_NAME, current_dir=CURRENT_DIR
+        env=test_env, qnet = qnet, env_name=ENV_NAME, current_dir=CURRENT_DIR
     )
     dqn_tester.test()
 
-    env.close()
+    test_env.close()
 
 if __name__ == "__main__":
     main()

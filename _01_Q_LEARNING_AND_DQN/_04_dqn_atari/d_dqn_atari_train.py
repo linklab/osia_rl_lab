@@ -30,6 +30,7 @@ def main():
     valid_env = gym.make(ENV_NAME)
     valid_env = gym.wrappers.AtariPreprocessing(
         valid_env,
+        noop_max=30,
         frame_skip=4,
         screen_size=(84, 84),
         grayscale_obs=True,
