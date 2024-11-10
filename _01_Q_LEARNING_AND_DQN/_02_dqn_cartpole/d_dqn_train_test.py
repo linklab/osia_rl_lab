@@ -112,7 +112,7 @@ class DqnTrainer:
 
         self.total_train_start_time = time.time()
 
-        validation_episode_reward_avg = 0.0
+        validation_episode_reward_avg = None
 
         is_terminated = False
 
@@ -153,6 +153,9 @@ class DqnTrainer:
                         self.model_save(validation_episode_reward_avg)
                         is_terminated = True
                         break
+
+            if validation_episode_reward_avg is None:
+                validation_episode_reward_avg = episode_reward
 
             if n_episode % self.config["print_episode_interval"] == 0:
                 print(
@@ -240,9 +243,12 @@ class DqnTrainer:
 
     def model_save(self, validation_episode_reward_avg: float) -> None:
         filename = "dqn_{0}_{1:4.1f}_{2}.pth".format(self.config["env_name"], validation_episode_reward_avg, self.current_time)
-        torch.save(self.qnet.state_dict(), os.path.join(MODEL_DIR, filename))
+        torch.save(self.qnet.state_dict(), os.path.join(self.model_dir, filename))
 
-        copyfile(src=os.path.join(MODEL_DIR, filename), dst=os.path.join(MODEL_DIR, "dqn_{0}_latest.pth".format(self.config["env_name"])))
+        copyfile(
+            src=os.path.join(self.model_dir, filename),
+            dst=os.path.join(self.model_dir, "dqn_{0}_latest.pth".format(self.config["env_name"]))
+        )
 
     def validate(self) -> tuple[np.ndarray, float]:
         episode_reward_lst = np.zeros(shape=(self.config["validation_num_episodes"],), dtype=float)
