@@ -21,7 +21,7 @@ print(env.action_space)      # Discrete(4)
 
 class Dummy_Agent:
     def get_action(self, observation: np.ndarray) -> int:
-        available_action_ids = [0, 1, 2, 3, 4, 5]
+        available_action_ids = [0, 1, 2, 3]
         action_id = random.choice(available_action_ids)
         return action_id
 
@@ -54,8 +54,6 @@ def run_env() -> None:
         observation = next_observation
         done = terminated or truncated
         episode_step += 1
-        time.sleep(0.1)
-
 
 if __name__ == "__main__":
     run_env()
