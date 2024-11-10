@@ -2,7 +2,6 @@
 import gymnasium as gym
 import torch
 import ale_py
-from gymnasium.wrappers import FrameStackObservation, AtariPreprocessing
 from c_qnet import QNetCNN
 
 from _01_Q_LEARNING_AND_DQN._02_dqn_cartpole.d_dqn_train_test import DqnTrainer
