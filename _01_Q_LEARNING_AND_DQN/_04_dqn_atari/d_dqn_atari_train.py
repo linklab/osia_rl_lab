@@ -3,11 +3,13 @@ import gymnasium as gym
 import torch
 import ale_py
 from c_qnet import QNetCNN
+import os
 
 from _01_Q_LEARNING_AND_DQN._02_dqn_cartpole.d_dqn_train_test import DqnTrainer
 
 gym.register_envs(ale_py)
 
+CURRENT_DIR = os.path.dirname(os.path.realpath(__file__))
 
 def main():
     print("TORCH VERSION:", torch.__version__)
@@ -43,7 +45,7 @@ def main():
         "learning_rate": 0.00025,                         # 학습율
         "gamma": 0.99,                                    # 감가율
         "steps_between_train": 2,                         # 훈련 사이의 환경 스텝 수
-        "replay_buffer_size": 200_000,                    # 리플레이 버퍼 사이즈
+        "replay_buffer_size": 500_000,                    # 리플레이 버퍼 사이즈
         "epsilon_start": 0.99,                            # Epsilon 초기 값
         "epsilon_end": 0.01,                              # Epsilon 최종 값
         "epsilon_final_scheduled_percent": 0.75,          # Epsilon 최종 값으로 스케줄되는 마지막 에피소드 비율
@@ -57,9 +59,10 @@ def main():
     qnet = QNetCNN(n_actions=4)
     target_qnet = QNetCNN(n_actions=4)
 
-    use_wandb = False
+    use_wandb = True
     dqn = DqnTrainer(
-        env=env, valid_env=valid_env, qnet=qnet, target_qnet=target_qnet, config=config, use_wandb=use_wandb
+        env=env, valid_env=valid_env, qnet=qnet, target_qnet=target_qnet, config=config, use_wandb=use_wandb,
+        current_dir=CURRENT_DIR
     )
     dqn.train_loop()
 

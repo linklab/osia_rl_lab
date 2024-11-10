@@ -1,10 +1,12 @@
 # https://gymnasium.farama.org/environments/classic_control/cart_pole/
 import gymnasium as gym
 import torch
+import os
 
 from _01_Q_LEARNING_AND_DQN._02_dqn_cartpole.c_qnet import QNet
 from _01_Q_LEARNING_AND_DQN._02_dqn_cartpole.d_dqn_train_test import DqnTrainer
 
+CURRENT_DIR = os.path.dirname(os.path.realpath(__file__))
 
 def main():
     print("TORCH VERSION:", torch.__version__)
@@ -36,7 +38,8 @@ def main():
 
     use_wandb = False
     dqn = DqnTrainer(
-        env=env, valid_env=valid_env, qnet=qnet, target_qnet=target_qnet, config=config, use_wandb=use_wandb
+        env=env, valid_env=valid_env, qnet=qnet, target_qnet=target_qnet, config=config, use_wandb=use_wandb,
+        current_dir=CURRENT_DIR
     )
     dqn.train_loop()
 

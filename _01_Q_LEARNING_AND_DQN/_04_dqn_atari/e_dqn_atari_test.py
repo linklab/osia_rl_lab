@@ -7,19 +7,19 @@ from c_qnet import MODEL_DIR, QNetCNN
 
 from _01_Q_LEARNING_AND_DQN._02_dqn_cartpole.d_dqn_train_test import DqnTester
 
+CURRENT_DIR = os.path.dirname(os.path.realpath(__file__))
+
 def main():
     NUM_EPISODES = 3
     ENV_NAME = "PongNoFrameskip-v4"
 
     env = gym.make(ENV_NAME, render_mode="human")
 
-    qnet = QNet(n_actions=2)
-    model_params = torch.load(os.path.join(MODEL_DIR, "dqn_{0}_latest.pth".format(ENV_NAME)), weights_only=True)
-    qnet.load_state_dict(model_params)
-    qnet.eval()
+    qnet = QNetCNN(n_actions=4)
 
-    dqn_tester = DqnTester(env=env, qnet = qnet, num_episodes=NUM_EPISODES)
+    dqn_tester = DqnTester(env=env, qnet = qnet, current_dir=CURRENT_DIR)
     dqn_tester.test()
+
     env.close()
 
 if __name__ == "__main__":

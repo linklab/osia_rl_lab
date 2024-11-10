@@ -6,11 +6,6 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
-MODEL_DIR = os.path.join(CURRENT_PATH, "models")
-if not os.path.exists(MODEL_DIR):
-    os.mkdir(MODEL_DIR)
-
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 

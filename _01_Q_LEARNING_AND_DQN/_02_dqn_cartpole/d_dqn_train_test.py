@@ -12,8 +12,6 @@ import torch.optim as optim
 import wandb
 import collections
 
-from c_qnet import MODEL_DIR
-
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 Transition = collections.namedtuple(
@@ -66,11 +64,17 @@ class ReplayBuffer:
 
 
 class DqnTrainer:
-    def __init__(self, env: gym.Env, valid_env: gym.Env, qnet, target_qnet, config: dict, use_wandb: bool):
+    def __init__(
+            self, env: gym.Env, valid_env: gym.Env, qnet, target_qnet, config: dict, use_wandb: bool, current_dir
+    ):
         self.env = env
         self.valid_env = valid_env
         self.use_wandb = use_wandb
         self.config = config
+
+        self.model_dir = os.path.join(current_dir, "models")
+        if not os.path.exists(self.model_dir):
+            os.mkdir(self.model_dir)
 
         self.current_time = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S")
 
@@ -275,30 +279,46 @@ class DqnTrainer:
 
 
 class DqnTester:
-    def __init__(self, env: gym.Env, qnet, num_episodes):
+    def __init__(self, env: gym.Env, qnet, env_name, current_dir):
         self.env = env
+
+        self.model_dir = os.path.join(current_dir, "models")
+        if not os.path.exists(self.model_dir):
+            os.mkdir(self.model_dir)
+
+        self.video_dir = os.path.join(current_dir, "videos")
+        if not os.path.exists(self.video_dir):
+            os.mkdir(self.video_dir)
+
+        self.env = gym.wrappers.RecordVideo(
+            env=self.env, video_folder=self.video_dir,
+            name_prefix="dqn_{0}_test_video".format(env_name)
+        )
+
         self.qnet = qnet
-        self.num_episodes = num_episodes
+
+        model_params = torch.load(os.path.join(self.model_dir, "dqn_{0}_latest.pth".format(env_name)), weights_only=True)
+        self.qnet.load_state_dict(model_params)
+        self.qnet.eval()
 
     def test(self):
-        for i in range(self.num_episodes):
-            episode_reward = 0  # cumulative_reward
+        episode_reward = 0  # cumulative_reward
 
-            # Environment 초기화와 변수 초기화
-            observation, _ = self.env.reset()
+        # Environment 초기화와 변수 초기화
+        observation, _ = self.env.reset()
+        time_steps = 0
 
-            episode_steps = 0
+        done = False
 
-            done = False
+        while not done:
+            time_steps += 1
+            action = self.qnet.get_action(observation, epsilon=0.0)
 
-            while not done:
-                episode_steps += 1
-                action = self.qnet.get_action(observation, epsilon=0.0)
+            next_observation, reward, terminated, truncated, _ = self.env.step(action)
 
-                next_observation, reward, terminated, truncated, _ = self.env.step(action)
+            episode_reward += reward
+            observation = next_observation
+            done = terminated or truncated
 
-                episode_reward += reward
-                observation = next_observation
-                done = terminated or truncated
-
-            print("[EPISODE: {0}] EPISODE_STEPS: {1:3d}, EPISODE REWARD: {2:4.1f}".format(i, episode_steps, episode_reward))
+        self.env.close()
+        print("[TOAL_STEPS: {0:3d}, EPISODE REWARD: {1:4.1f}".format(time_steps, episode_reward))
