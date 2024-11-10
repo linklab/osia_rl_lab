@@ -37,7 +37,7 @@ class SAC:
         self.learning_rate = config["learning_rate"]
         self.gamma = config["gamma"]
         self.print_episode_interval = config["print_episode_interval"]
-        self.train_num_episodes_before_next_validation = config["train_num_episodes_before_next_validation"]
+        self.validation_time_steps_interval = config["validation_time_steps_interval"]
         self.validation_num_episodes = config["validation_num_episodes"]
         self.episode_reward_avg_solved = config["episode_reward_avg_solved"]
         self.steps_between_train = config["steps_between_train"]
@@ -75,8 +75,10 @@ class SAC:
 
         self.max_alpha = 5.0
 
+        self.total_train_start_time = None
+
     def train_loop(self) -> None:
-        total_train_start_time = time.time()
+        self.total_train_start_time = time.time()
 
         validation_episode_reward_avg = -1500
         policy_loss = q_1_td_loss = q_2_td_loss = alpha_loss = mu = entropy = 0.0
@@ -112,6 +114,14 @@ class SAC:
                 if self.time_steps % self.steps_between_train == 0 and self.time_steps > self.batch_size:
                     policy_loss, q_1_td_loss, q_2_td_loss, alpha_loss, mu, entropy = self.train()
 
+                if self.time_steps % self.validation_time_steps_interval == 0:
+                    validation_episode_reward_lst, validation_episode_reward_avg = self.validate()
+
+                    if validation_episode_reward_avg > self.episode_reward_avg_solved:
+                        print("Solved in {0:,} time steps ({1:,} training steps)!".format(self.time_steps, self.training_time_steps))
+                        self.model_save(validation_episode_reward_avg)
+                        is_terminated = True
+
             if n_episode % self.print_episode_interval == 0:
                 print(
                     "[Epi. {:3,}, Time Steps {:6,}]".format(n_episode, self.time_steps),
@@ -124,24 +134,7 @@ class SAC:
                     "Train Steps: {:5,}".format(self.training_time_steps),
                 )
 
-            if n_episode % self.train_num_episodes_before_next_validation == 0:
-                validation_episode_reward_lst, validation_episode_reward_avg = self.validate()
-
-                total_training_time = time.time() - total_train_start_time
-                total_training_time = time.strftime("%H:%M:%S", time.gmtime(total_training_time))
-
-                print(
-                    "[Validation Episode Reward: {0}] Average: {1:.3f}, Elapsed Time: {2}".format(
-                        validation_episode_reward_lst, validation_episode_reward_avg, total_training_time
-                    )
-                )
-
-                if validation_episode_reward_avg > self.episode_reward_avg_solved:
-                    print("Solved in {0:,} time steps ({1:,} training steps)!".format(self.time_steps, self.training_time_steps))
-                    self.model_save(validation_episode_reward_avg)
-                    is_terminated = True
-
-            if self.use_wandb and n_episode > self.train_num_episodes_before_next_validation:
+            if self.use_wandb and n_episode > self.validation_time_steps_interval:
                 self.log_wandb(
                     validation_episode_reward_avg,
                     episode_reward,
@@ -168,7 +161,7 @@ class SAC:
                         )
                 break
 
-        total_training_time = time.time() - total_train_start_time
+        total_training_time = time.time() - self.total_train_start_time
         total_training_time = time.strftime("%H:%M:%S", time.gmtime(total_training_time))
         print("Total Training End : {}".format(total_training_time))
         if self.use_wandb:
@@ -311,7 +304,17 @@ class SAC:
 
             episode_reward_lst[i] = episode_reward
 
-        return episode_reward_lst, np.average(episode_reward_lst)
+        episode_reward_avg = np.average(episode_reward_lst)
+
+        total_training_time = time.time() - self.total_train_start_time
+        total_training_time = time.strftime("%H:%M:%S", time.gmtime(total_training_time))
+
+        print(
+            "[Validation Episode Reward: {0}] Average: {1:.3f}, Elapsed Time: {2}".format(
+                episode_reward_lst, episode_reward_avg, total_training_time
+            )
+        )
+        return episode_reward_lst, episode_reward_avg
 
 
 def main() -> None:
@@ -334,7 +337,7 @@ def main() -> None:
         "gamma": 0.99,                                      # 감가율
         "soft_update_tau": 0.995,                           # Soft Update Tau
         "print_episode_interval": 20,                       # Episode 통계 출력에 관한 에피소드 간격
-        "train_num_episodes_before_next_validation": 100,   # 검증 사이 마다 각 훈련 episode 간격
+        "validation_time_steps_interval": 1_000,   # 검증 사이 마다 각 훈련 episode 간격
         "validation_num_episodes": 3,                       # 검증에 수행하는 에피소드 횟수
         # "episode_reward_avg_solved": 5000,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
         # "episode_reward_avg_solved": 9000,  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average

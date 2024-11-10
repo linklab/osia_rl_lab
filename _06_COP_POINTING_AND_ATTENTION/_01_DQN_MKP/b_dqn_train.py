@@ -61,13 +61,13 @@ class DQN:
         self.learning_rate = config["learning_rate"]
         self.gamma = config["gamma"]
         self.steps_between_train = config["steps_between_train"]
-        self.target_sync_step_interval = config["target_sync_step_interval"]
+        self.target_sync_time_steps_interval = config["target_sync_time_steps_interval"]
         self.replay_buffer_size = config["replay_buffer_size"]
         self.epsilon_start = config["epsilon_start"]
         self.epsilon_end = config["epsilon_end"]
         self.epsilon_final_scheduled_percent = config["epsilon_final_scheduled_percent"]
         self.print_episode_interval = config["print_episode_interval"]
-        self.train_num_episodes_before_next_validation = config["train_num_episodes_before_next_validation"]
+        self.validation_time_steps_interval = config["validation_time_steps_interval"]
         self.validation_num_episodes = config["validation_num_episodes"]
         self.double_dqn = config["double_dqn"]
 
@@ -148,8 +148,8 @@ class DQN:
                     "Training Steps: {:>5,}".format(self.training_time_steps)
                 )
 
-            # print(epsilon, self.epsilon_end, n_episode, self.train_num_episodes_before_next_validation, "!!!")
-            if n_episode % self.train_num_episodes_before_next_validation == 0:
+            # print(epsilon, self.epsilon_end, n_episode, self.validation_time_steps_interval, "!!!")
+            if n_episode % self.validation_time_steps_interval == 0:
                 validation_episode_reward_lst, validation_episode_reward_avg, validation_total_value_lst, validation_total_value_avg = \
                     self.validate()
 
@@ -227,7 +227,7 @@ class DQN:
         loss.backward()
         self.optimizer.step()
         # sync
-        if self.time_steps % self.target_sync_step_interval == 0:
+        if self.time_steps % self.target_sync_time_steps_interval == 0:
             self.target_q.load_state_dict(self.q.state_dict())
 
         return loss.item()
@@ -268,13 +268,13 @@ def main():
         "learning_rate": 0.0001,                            # 학습율
         "gamma": 1.0,                                       # 감가율
         "steps_between_train": 4,                           # 훈련 사이의 환경 스텝 수
-        "target_sync_step_interval": 300 * NUM_ITEMS,       # 기존 Q 모델을 타깃 Q 모델로 동기화시키는 step 간격
+        "target_sync_time_steps_interval": 300 * NUM_ITEMS,       # 기존 Q 모델을 타깃 Q 모델로 동기화시키는 step 간격
         "replay_buffer_size": 10000 * NUM_ITEMS,            # 리플레이 버퍼 사이즈
         "epsilon_start": 0.95,                              # Epsilon 초기 값
         "epsilon_end": 0.01,                                # Epsilon 최종 값
         "epsilon_final_scheduled_percent": 0.25,            # Epsilon 최종 값으로 스케줄되는 마지막 에피소드 비율
         "print_episode_interval": 10,                       # Episode 통계 출력에 관한 에피소드 간격
-        "train_num_episodes_before_next_validation": 1000,  # 검증 사이 마다 각 훈련 episode 간격
+        "validation_time_steps_interval": 1000,  # 검증 사이 마다 각 훈련 episode 간격
         "validation_num_episodes": 100,                     # 검증에 수행하는 에피소드 횟수
         "early_stop_patience": NUM_ITEMS * 5,               # episode_reward가 개선될 때까지 기다리는 기간
         "double_dqn": True

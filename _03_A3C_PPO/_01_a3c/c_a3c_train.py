@@ -33,7 +33,7 @@ def master_loop(global_actor, shared_stat, run_wandb, global_lock, config):
             self.test_env = test_env
             self.global_lock = global_lock
 
-            self.train_num_episodes_before_next_validation = config["train_num_episodes_before_next_validation"]
+            self.validation_time_steps_interval = config["validation_time_steps_interval"]
             self.validation_num_episodes = config["validation_num_episodes"]
             self.episode_reward_avg_solved = config["episode_reward_avg_solved"]
 
@@ -48,7 +48,7 @@ def master_loop(global_actor, shared_stat, run_wandb, global_lock, config):
             while True:
                 validation_conditions = [
                     self.shared_stat.global_episodes.value != 0,
-                    self.shared_stat.global_episodes.value % self.train_num_episodes_before_next_validation == 0,
+                    self.shared_stat.global_episodes.value % self.validation_time_steps_interval == 0,
                     self.shared_stat.global_episodes.value > self.last_global_episode_for_validation
                 ]
                 if all(validation_conditions):
@@ -80,7 +80,7 @@ def master_loop(global_actor, shared_stat, run_wandb, global_lock, config):
                 wandb_log_conditions = [
                     self.wandb,
                     self.shared_stat.global_episodes.value > self.last_global_episode_wandb_log,
-                    self.shared_stat.global_episodes.value > self.train_num_episodes_before_next_validation,
+                    self.shared_stat.global_episodes.value > self.validation_time_steps_interval,
                 ]
                 if all(wandb_log_conditions):
                     self.log_wandb(validation_episode_reward_avg)
@@ -413,7 +413,7 @@ def main():
         "gamma": 0.99,                                      # 감가율
         "entropy_beta": 0.03,                               # 엔트로피 가중치
         "print_episode_interval": 20,                       # Episode 통계 출력에 관한 에피소드 간격
-        "train_num_episodes_before_next_validation": 100 * 4,   # 검증 사이 마다 각 훈련 episode 간격
+        "validation_time_steps_interval": 100 * 4,   # 검증 사이 마다 각 훈련 episode 간격
         "validation_num_episodes": 3,                       # 검증에 수행하는 에피소드 횟수
         "episode_reward_avg_solved": -150,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
     }

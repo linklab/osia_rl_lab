@@ -11,7 +11,7 @@ print("gym.__version__:", gym.__version__)
 
 gym.register_envs(ale_py)
 
-env = gym.make("ALE/Pong-v5", render_mode="rgb_array")
+env = gym.make("PongNoFrameskip-v4", render_mode="rgb_array")
 
 ACTION_STRING_LIST = [" NOOP", " FIRE", "RIGHT", " LEFT", "RIGHTFIRE", "LEFTFIRE"]
 

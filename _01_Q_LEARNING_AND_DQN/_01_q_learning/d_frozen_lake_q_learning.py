@@ -20,12 +20,13 @@ class QTableAgent:
     ):
         self.env = env
         self.num_episodes = config["num_episodes"]
-        self.train_num_episodes_before_next_validation = config["train_num_episodes_before_next_validation"]
+        self.validation_time_steps_interval = config["validation_time_steps_interval"]
         self.validation_num_episodes = config["validation_num_episodes"]
         self.alpha = config["alpha"]
         self.gamma = config["gamma"]
         self.epsilon = config["epsilon"]
         self.use_wandb = use_wandb
+        self.time_steps = 0
 
         # Q-Table 초기화
         self.q_table = np.zeros([env.observation_space.n, env.action_space.n])
@@ -54,7 +55,7 @@ class QTableAgent:
         episode_reward_list = []
         episode_td_error_list = []
 
-        training_time_steps = 0
+        training_time_steps = time_steps = 0
         is_train_success = False
 
         for episode in range(self.num_episodes):
@@ -69,6 +70,8 @@ class QTableAgent:
             done = False
 
             while not done:
+                self.time_steps += 1
+
                 action = self.epsilon_greedy_action(observation)
                 next_observation, reward, terminated, truncated, _ = self.env.step(action)
                 episode_step += 1
@@ -87,29 +90,29 @@ class QTableAgent:
 
                 done = terminated or truncated
 
+                if self.time_steps % self.validation_time_steps_interval == 0:
+                    episode_reward_list_validation, avg_episode_reward_validation = self.validate()
+                    print(
+                        "[VALIDATION RESULTS: {0} Episodes, Episode Reward List: {1}] Episode Reward Mean: {2:.3f}".format(
+                            self.validation_num_episodes,
+                            episode_reward_list_validation,
+                            avg_episode_reward_validation
+                        )
+                    )
+                    if avg_episode_reward_validation == 1.0:
+                        print("***** TRAINING DONE!!! *****")
+                        is_train_success = True
+                        break
+
             print(
-                "[EPISODE: {0:>2}]".format(
-                    episode + 1,
+                "[EPISODE: {0:>2}, Time Steps {1:6,}]".format(
+                    episode + 1, self.time_steps
                 ),
                 "Episode Steps: {0:>2}, Visited States Length: {1:>2}, Episode Reward: {2}".format(
                     episode_step, len(visited_states), episode_reward
                 ),
                 "GOAL" if done and observation == 15 else "",
             )
-
-            if (episode + 1) % self.train_num_episodes_before_next_validation == 0:
-                episode_reward_list_validation, avg_episode_reward_validation = self.validate()
-                print(
-                    "[VALIDATION RESULTS: {0} Episodes, Episode Reward List: {1}] Episode Reward Mean: {2:.3f}".format(
-                        self.validation_num_episodes,
-                        episode_reward_list_validation,
-                        avg_episode_reward_validation
-                    )
-                )
-                if avg_episode_reward_validation == 1.0:
-                    print("***** TRAINING DONE!!! *****")
-                    is_train_success = True
-                    break
 
             if self.use_wandb:
                 wandb.log({
@@ -118,6 +121,9 @@ class QTableAgent:
                     "[TRAIN] Average Episode TD Error": episode_td_error / episode_step,
                     "[VALIDATION] Average Episode Reward": avg_episode_reward_validation
                 })
+
+            if is_train_success:
+                break
 
         if self.use_wandb:
             wandb.finish()
@@ -151,7 +157,7 @@ class QTableAgent:
 def main():
     config = {
         "num_episodes": 200,
-        "train_num_episodes_before_next_validation": 10,
+        "validation_time_steps_interval": 10,
         "validation_num_episodes": 10,
         "alpha": 0.1,
         "gamma": 0.95,

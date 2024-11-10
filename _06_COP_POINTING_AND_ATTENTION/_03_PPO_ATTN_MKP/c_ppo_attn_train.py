@@ -34,7 +34,7 @@ def master_loop(global_actor, shared_stat, wandb, global_lock, config):
             self.test_env = test_env
             self.global_lock = global_lock
 
-            self.train_num_episodes_before_next_validation = config["train_num_episodes_before_next_validation"]
+            self.validation_time_steps_interval = config["validation_time_steps_interval"]
             self.validation_num_episodes = config["validation_num_episodes"]
 
             self.current_time = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S")
@@ -54,7 +54,7 @@ def master_loop(global_actor, shared_stat, wandb, global_lock, config):
             while True:
                 validation_conditions = [
                     self.shared_stat.global_episodes.value != 0,
-                    self.shared_stat.global_episodes.value % self.train_num_episodes_before_next_validation == 0,
+                    self.shared_stat.global_episodes.value % self.validation_time_steps_interval == 0,
                 ]
                 if all(validation_conditions):
                     self.global_lock.acquire()
@@ -414,7 +414,7 @@ def main():
         "gamma": 0.99,                                      # 감가율
         "entropy_beta": 0.03,                               # 엔트로피 가중치
         "print_episode_interval": 10,                       # Episode 통계 출력에 관한 에피소드 간격
-        "train_num_episodes_before_next_validation": 1000,  # 검증 사이 마다 각 훈련 episode 간격
+        "validation_time_steps_interval": 1000,  # 검증 사이 마다 각 훈련 episode 간격
         "validation_num_episodes": 100,                     # 검증에 수행하는 에피소드 횟수
         "early_stop_patience": NUM_ITEMS * 10,              # episode_reward가 개선될 때까지 기다리는 기간
     }

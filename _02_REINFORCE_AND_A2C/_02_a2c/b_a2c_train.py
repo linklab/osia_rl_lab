@@ -36,7 +36,7 @@ class A2C:
         self.gamma = config["gamma"]
         self.entropy_beta = config["entropy_beta"]
         self.print_episode_interval = config["print_episode_interval"]
-        self.train_num_episodes_before_next_validation = config["train_num_episodes_before_next_validation"]
+        self.validation_time_steps_interval = config["validation_time_steps_interval"]
         self.validation_num_episodes = config["validation_num_episodes"]
         self.episode_reward_avg_solved = config["episode_reward_avg_solved"]
 
@@ -95,7 +95,7 @@ class A2C:
                     "Training Steps: {:5,}, ".format(self.training_time_steps),
                 )
 
-            if n_episode % self.train_num_episodes_before_next_validation == 0:
+            if n_episode % self.validation_time_steps_interval == 0:
                 validation_episode_reward_lst, validation_episode_reward_avg = self.validate()
 
                 total_training_time = time.time() - total_train_start_time
@@ -112,7 +112,7 @@ class A2C:
                     self.model_save(validation_episode_reward_avg)
                     is_terminated = True
 
-            if self.use_wandb and n_episode > self.train_num_episodes_before_next_validation:
+            if self.use_wandb and n_episode > self.validation_time_steps_interval:
                 self.log_wandb(
                     validation_episode_reward_avg,
                     episode_reward,
@@ -261,7 +261,7 @@ def main() -> None:
         "gamma": 0.99,  # 감가율
         "entropy_beta": 0.05,  # 엔트로피 가중치
         "print_episode_interval": 20,  # Episode 통계 출력에 관한 에피소드 간격
-        "train_num_episodes_before_next_validation": 100,  # 검증 사이 마다 각 훈련 episode 간격
+        "validation_time_steps_interval": 100,  # 검증 사이 마다 각 훈련 episode 간격
         "validation_num_episodes": 3,  # 검증에 수행하는 에피소드 횟수
         "episode_reward_avg_solved": -150,  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
     }
